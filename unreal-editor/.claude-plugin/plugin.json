@@ -1,0 +1,12 @@
+{
+  "name": "unreal-editor",
+  "description": "Drive a live Unreal Editor over MCP (VibeUE or Epic's unreal-mcp): launch, PIE, asset and level edits, screenshots, log checks, Python inspection of PIE",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills",
+  "dependencies": [
+    "ue-workstation",
+    "ue-build-test"
+  ]
+}

@@ -1,0 +1,4 @@
+#!/bin/sh
+PY="${PYTHON:-$(command -v python || command -v python3)}"
+[ -n "$PY" ] || { echo "find-asset-refs: no Python 3 found - put python on PATH or set PYTHON" >&2; exit 2; }
+exec "$PY" -B "$(dirname "$0")/../skills/ue-content-gates/scripts/py/find_asset_refs.py" "$@"

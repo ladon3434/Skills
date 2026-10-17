@@ -1,0 +1,8 @@
+{
+  "name": "ue-systems",
+  "description": "UE 5.8 gameplay frameworks, one skill each: Enhanced Input, StateTree, PCG - setup, C++ and asset idioms, review checklist, traps verified against the engine source",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

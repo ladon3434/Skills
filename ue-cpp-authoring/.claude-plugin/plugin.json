@@ -1,0 +1,8 @@
+{
+  "name": "ue-cpp-authoring",
+  "description": "How to write C++ for UE 5.x: idioms, assertions and threading, validation, asset slots, modules, subsystems and data assets, widgets and CommonUI, refactoring, editor tool plugins",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

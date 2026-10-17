@@ -1,0 +1,81 @@
+{
+  "name": "ue-skills",
+  "owner": {
+    "name": "Roman Kovrigin"
+  },
+  "metadata": {
+    "description": "Portable Claude Code skills for Unreal Engine 5.x development, one plugin per skill"
+  },
+  "plugins": [
+    {
+      "name": "ue-workstation",
+      "source": "./ue-workstation",
+      "description": "Claude Code harness for UE projects: safety hooks (editor ownership, no tree-rewriting git while the editor is open, clang-format), templates, doctor, safe-pull, clangd hygiene"
+    },
+    {
+      "name": "code-analysis",
+      "source": "./code-analysis",
+      "description": "Analyse, review and debug UE C++ to the root cause: engine signatures (engine-api), known-hazard index, log scan, agents code-scout / engine-reader / log-triage"
+    },
+    {
+      "name": "ue-cpp-authoring",
+      "source": "./ue-cpp-authoring",
+      "description": "How to write C++ for UE 5.x: idioms, assertions and threading, validation, asset slots, modules, subsystems and data assets, widgets and CommonUI, refactoring, editor tool plugins"
+    },
+    {
+      "name": "ue-build-test",
+      "source": "./ue-build-test",
+      "description": "Build and run UE automation tests without the editor window: incremental and full builds, Game/Shipping gate, test authoring, flaky-test quarantine"
+    },
+    {
+      "name": "unreal-editor",
+      "source": "./unreal-editor",
+      "description": "Drive a live Unreal Editor over MCP (VibeUE or Epic's unreal-mcp): launch, PIE, asset and level edits, screenshots, log checks, Python inspection of PIE"
+    },
+    {
+      "name": "ue-content-gates",
+      "source": "./ue-content-gates",
+      "description": "Offline UE content checks: .uasset headers, which assets use a C++ symbol, forbidden references, /Game paths in C++, cook verification"
+    },
+    {
+      "name": "ue-gas",
+      "source": "./ue-gas",
+      "description": "Gameplay Ability System in UE 5.x: feature cheatsheets, GAS code review checklist, mechanics reference (working digest + tranek's GASDocumentation) with 5.5+ corrections"
+    },
+    {
+      "name": "ue-systems",
+      "source": "./ue-systems",
+      "description": "UE 5.8 gameplay frameworks, one skill each: Enhanced Input, StateTree, PCG - setup, C++ and asset idioms, review checklist, traps verified against the engine source"
+    },
+    {
+      "name": "ue-release",
+      "source": "./ue-release",
+      "description": "UE pre-release pass: project metadata, branding, debug code stripped from Shipping, bundled PSO cache, localization coverage, then the project's own packaging command"
+    },
+    {
+      "name": "ue-perf",
+      "source": "./ue-perf",
+      "description": "Profile a UE 5.x game with Unreal Insights without its window: capture a .utrace, export it headless, read a text digest - frame times and hitches, top timers per thread and GPU, worst frames broken down"
+    },
+    {
+      "name": "devping",
+      "source": "./devping",
+      "description": "Pings to the phone from Claude Code windows through ntfy: a window that waits for an answer or has finished sends only its name and that kind; per-project topics, nothing written into the project"
+    },
+    {
+      "name": "doc-tts",
+      "source": "./doc-tts",
+      "description": "Voice markdown documents into MP3 with a local neural voice: Qwen3-TTS on a ComfyUI stand, a voice designed once from a written description and cloned for every document (Microsoft Edge TTS as a fallback)"
+    },
+    {
+      "name": "md-doc-hygiene",
+      "source": "./md-doc-hygiene",
+      "description": "Markdown/Obsidian docs: how to write a document people read (structure, summary, problems, open questions, table of contents) and form rules with checkers: list numbering, heading and block anchors, links, tables, tables of contents, repeated sentences; jargon and glossary checks driven by the project's own dictionaries"
+    },
+    {
+      "name": "desk-utils",
+      "source": "./desk-utils",
+      "description": "Windows desktop helpers: read/write the clipboard, capture the screen, print markdown/HTML to PDF via headless Chrome or Edge"
+    }
+  ]
+}

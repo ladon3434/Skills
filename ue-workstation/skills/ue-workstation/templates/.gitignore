@@ -1,0 +1,53 @@
+# IDEs
+.vs/
+.idea/
+.vscode/
+.vsconfig
+*.sln
+*.suo
+*.VC.db
+*.VC.opendb
+*.sln.DotSettings.user
+*.uproject.DotSettings.user
+*.unrealvs
+*.code-workspace
+
+# clangd: the database stays absent (generate-clang-database / clean-clangd); .clangd itself is tracked
+compile_commands.json
+compile_flags.txt
+.cache/clangd/
+
+# Generated trees
+Binaries/*
+Build/*
+!Build/Windows/
+Build/Windows/*
+!Build/Windows/Application.ico
+Intermediate/*
+Saved/*
+DerivedDataCache/*
+Plugins/*/Binaries/*
+Plugins/*/Intermediate/*
+# A vendor plugin ships libraries no build makes: they are source, not output.
+!Plugins/*/Binaries/ThirdParty/
+
+# Build outputs
+*.obj
+*.pdb
+*.dll
+*.lib
+*.exp
+!Plugins/*/Binaries/ThirdParty/**/*.dll
+!Plugins/*/Source/ThirdParty/**/*.lib
+
+# Content that is rebuilt or personal
+*_BuiltData.uasset
+Content/Developers/
+
+# Local Claude Code settings (per person)
+.claude/settings.local.json
+
+# Tooling
+__pycache__/
+*.pyc
+desktop.ini

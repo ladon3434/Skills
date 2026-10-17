@@ -1,0 +1,8 @@
+{
+  "name": "desk-utils",
+  "description": "Windows desktop helpers: read/write the clipboard, capture the screen, print markdown/HTML to PDF via headless Chrome or Edge",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

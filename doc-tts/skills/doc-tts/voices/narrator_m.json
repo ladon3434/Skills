@@ -1,0 +1,9 @@
+{
+  "instruction": "A calm middle-aged male narrator with a warm, low voice, clear diction, steady unhurried pace, like a documentary or audiobook reader.",
+  "seed": 1,
+  "language": "Russian",
+  "text": "Здравствуйте. Это пробная запись голоса для чтения документов. Сейчас я прочитаю небольшой отрывок: спокойно, внятно, без спешки, с паузами там, где они нужны.",
+  "model": "Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+  "speak_seed": 1,
+  "default": true
+}
