@@ -1,0 +1,11 @@
+{
+  "name": "ue-build-test",
+  "description": "Build and run UE automation tests without the editor window: incremental and full builds, Game/Shipping gate, test authoring, flaky-test quarantine",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills",
+  "dependencies": [
+    "ue-workstation"
+  ]
+}

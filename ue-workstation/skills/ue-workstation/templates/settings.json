@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(*)",
+      "PowerShell(*)",
+      "Read",
+      "Edit(**)",
+      "Write",
+      "NotebookEdit",
+      "Skill(*)",
+      "WebSearch",
+      "WebFetch",
+      "mcp__unreal-mcp"
+    ],
+    "deny": [],
+    "ask": [
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(unlink:*)",
+      "Bash(shred:*)",
+      "Bash(find * -delete*)",
+      "Bash(git rm:*)",
+      "Bash(git clean:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git checkout --:*)",
+      "Bash(git branch -D:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "PowerShell(Remove-Item:*)",
+      "PowerShell(Remove-ItemProperty:*)",
+      "PowerShell(Clear-Content:*)",
+      "PowerShell(rm:*)",
+      "PowerShell(ri:*)",
+      "PowerShell(del:*)",
+      "PowerShell(erase:*)",
+      "PowerShell(rd:*)",
+      "PowerShell(rmdir:*)",
+      "PowerShell(git rm:*)",
+      "PowerShell(git clean:*)",
+      "PowerShell(git reset --hard:*)",
+      "PowerShell(git checkout --:*)",
+      "PowerShell(git branch -D:*)",
+      "PowerShell(git push --force:*)",
+      "PowerShell(git push -f:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": false,
+  "enabledMcpjsonServers": [
+    "unreal-mcp"
+  ]
+}

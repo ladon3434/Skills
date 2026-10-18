@@ -1,0 +1,16 @@
+{
+  "description": "devping: on a Notification, ping the phone through ntfy - only for a project connected with `devping connect` (it has a topic); silent everywhere else",
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/skills/devping/scripts/devping.py\" hook",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

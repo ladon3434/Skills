@@ -1,0 +1,11 @@
+{
+  "name": "ue-content-gates",
+  "description": "Offline UE content checks: .uasset headers, which assets use a C++ symbol, forbidden references, /Game paths in C++, cook verification",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills",
+  "dependencies": [
+    "ue-workstation"
+  ]
+}
