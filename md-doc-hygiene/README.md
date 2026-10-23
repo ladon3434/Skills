@@ -19,6 +19,7 @@ Paths are relative to the plugin's `skills/` folder; `.claude-plugin/` sits at t
 | `md-doc-hygiene/scripts/check_duplicates.py` | repeated sentences, compared without punctuation and case |
 | `md-doc-hygiene/scripts/check_jargon.py` | words the project swept out of its docs (list in `<project>/.claude/md-doc-hygiene/jargon.json`) |
 | `md-doc-hygiene/scripts/check_terms.py` | per-chapter glossaries: a term defined once, its anchor in the Terms section (settings in `.../terms.json`) |
+| `md-doc-hygiene/scripts/check_series.py` | numbered heading series (`## Q12. …`): no repeats or gaps, every number the text names exists (series in `.../series.json`) |
 
 ## Install
 

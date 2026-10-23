@@ -43,6 +43,7 @@ The checkers are here; what they look for is the project's, in `<project>/.claud
 ```
 python <skill>/scripts/check_jargon.py [<docs>]     # needs jargon.json; without <docs> - its "paths"
 python <skill>/scripts/check_terms.py [<chapters>]  # needs terms.json; without <chapters> - its "paths"
+python <skill>/scripts/check_series.py [--strict]   # needs series.json
 ```
 
 - **Jargon** (`jargon.json`) — words the project swept out of its documents, each with what to write instead and
@@ -53,6 +54,13 @@ python <skill>/scripts/check_terms.py [<chapters>]  # needs terms.json; without 
   definition grown into rules, `[ORP]` a Term nobody else mentions — warnings for a person. The settings (heading
   text, anchor prefix, catalogue chapters exempt from `[ANC]`, words that mark a pointer entry) are in the
   script's header.
+- **Numbered series** (`series.json`) — a register whose headings carry an ID on purpose (`## Q12. …`: questions,
+  decisions, requirements) and the places that name those IDs. `[SEQ ]` the register's numbers repeat, skip or
+  run out of order, `[GONE]` the text names a number the register does not have — errors; `[BARE]` an existing
+  number named as plain text instead of a link — a warning (`--strict` makes it an error). Mentions inside
+  `[[links]]` and code are not checked. **Never promise a number in advance** ("the next free one is Q15"): it goes
+  stale as soon as someone else takes it. Give the number when the entry is written, and refer to the register
+  until then. The format is in the script's header.
 
 No such file — the project keeps no such rule; skip the check. A project may still carry other checkers of its
 own — run those too.
