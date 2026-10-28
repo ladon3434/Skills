@@ -1,0 +1,8 @@
+{
+  "name": "ue-workstation",
+  "description": "Claude Code harness for UE projects: safety hooks (editor ownership, no tree-rewriting git while the editor is open, clang-format), templates, doctor, safe-pull, clangd hygiene",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

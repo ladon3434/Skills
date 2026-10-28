@@ -1,0 +1,28 @@
+{
+  "description": "ue-build-test: a session cannot finish with C++ it edited but never built (off with UE_BT_STOP_CHECK=0)",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-build-test/hooks/unbuilt-cpp.mjs\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-build-test/hooks/unbuilt-cpp.mjs\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

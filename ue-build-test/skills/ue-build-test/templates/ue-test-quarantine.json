@@ -1,0 +1,6 @@
+{
+  "$comment": "Flaky-test quarantine for ue-test.cmd. Copy to <project>/.claude/ue-test-quarantine.json. A token is a test-path prefix (Suite.Sub.Test or shorter). A quarantined test still RUNS and is reported as QUARANTINED; its failure never decides the verdict. Every entry needs a reason and a since date - remove it the day the test is fixed. Quarantine is for flaky failures, not for crashes: a test that kills the editor stops the whole run and fails it.",
+  "quarantined": [
+    { "token": "MyGame.Net.Replication.LatencySpike", "reason": "timing-dependent, fails ~1 in 10 under load", "since": "2026-10-01" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "doc-tts",
+  "description": "Voice markdown documents into MP3 with a local neural voice: Qwen3-TTS on a ComfyUI stand, a voice designed once from a written description and cloned for every document (Microsoft Edge TTS as a fallback)",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

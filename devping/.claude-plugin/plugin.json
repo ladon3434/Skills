@@ -1,0 +1,8 @@
+{
+  "name": "devping",
+  "description": "Pings to the phone from Claude Code windows through ntfy: a window that waits for an answer or has finished sends only its name and that kind; per-project topics, nothing written into the project",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

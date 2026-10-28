@@ -1,0 +1,8 @@
+{
+  "name": "code-analysis",
+  "description": "Analyse, review and debug UE C++ to the root cause: engine signatures (engine-api), known-hazard index, log scan, crash triage (crash-triage), agents code-scout / engine-reader / log-triage",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

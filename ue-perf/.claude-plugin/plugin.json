@@ -1,0 +1,8 @@
+{
+  "name": "ue-perf",
+  "description": "Profile a UE 5.x game with Unreal Insights without its window: capture a .utrace (channels, editor vs packaged build), export it headless and read a text digest - frame times and hitches, top timers per thread and GPU, the worst frames broken down",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

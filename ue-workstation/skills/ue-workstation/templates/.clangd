@@ -1,0 +1,23 @@
+# clangd parse configuration for an Unreal project on Windows (MSVC). Tracked; never deleted by clean-clangd.
+# The compile database itself (compile_commands.json) stays ABSENT unless a task needs it: with it present clangd
+# background-indexes the whole engine and eats tens of GB of commit charge (builds then die in a UBA
+# "Low on memory" retry loop). generate-clang-database -> work -> clean-clangd.
+CompileFlags:
+  Add:
+    - --driver-mode=cl
+    - -fms-extensions
+    - -fms-compatibility
+    # Match the MSVC toolset UBT uses (cl.exe /? prints 19.xx); a mismatch shows up as phantom STL errors.
+    - -fms-compatibility-version=19.44
+    - -Wno-everything
+  Remove:
+    # PCH and MSVC-internal switches clang cannot digest.
+    - /Yc*
+    - /Yu*
+    - /Fp*
+    - /d2*
+    - /experimental*
+    - -showIncludes
+    - -vctoolsdir*
+Index:
+  Background: Build

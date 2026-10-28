@@ -1,0 +1,17 @@
+{
+  "description": "ue-cpp-authoring: injects the UE C++ rule (rules/ue-cpp.md) the first time a Source/ file is read or edited in a session",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Read|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-cpp-authoring/hooks/cpp-rule.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

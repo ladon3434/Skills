@@ -1,0 +1,11 @@
+{
+  "name": "ue-release",
+  "description": "UE pre-release pass: project metadata, branding, debug code stripped from Shipping, bundled PSO cache, localization coverage, then the project's own packaging command",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills",
+  "dependencies": [
+    "ue-workstation"
+  ]
+}
