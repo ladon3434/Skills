@@ -1,0 +1,8 @@
+{
+  "name": "ue-gas",
+  "description": "Gameplay Ability System in UE 5.x: feature cheatsheets, GAS code review checklist, mechanics reference (working digest + tranek's GASDocumentation) with 5.5+ corrections",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

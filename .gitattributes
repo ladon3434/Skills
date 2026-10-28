@@ -1,0 +1,9 @@
+* text=auto
+*.cmd text eol=crlf
+*.sh text eol=lf
+# bin/ shims are sh scripts run by Git Bash: keep LF
+bin/* text eol=lf
+*/bin/* text eol=lf
+*.flac binary
+*.wav binary
+*.mp3 binary

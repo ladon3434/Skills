@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "unreal-mcp": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["Tools/Skills/unreal-editor/skills/unreal-editor/scripts/mcp-bridge/bridge.mjs"]
+    }
+  }
+}

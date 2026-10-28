@@ -1,0 +1,8 @@
+{
+  "name": "md-doc-hygiene",
+  "description": "Markdown/Obsidian docs: how to write a document people read (structure, summary, problems, open questions, table of contents) and form rules with checkers: list numbering, heading and block anchors, links, tables, tables of contents, repeated sentences; jargon and glossary checks driven by the project's own dictionaries",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}

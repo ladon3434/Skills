@@ -1,0 +1,149 @@
+{
+  "description": "ue-workstation: editor ownership guard, no tree-rewriting git while the editor is open, clang-format after C++ edits, engine root for subagents, no fork from a context over 150k (UE_WS_FORK_MAX_CONTEXT), skill-lint after an edit of agent instructions (projects with .claude/skill-lint.json), project state at session start (off with UE_WS_SESSION_STATE=0), no background command without a time bound (off with UE_WS_WAIT_GUARD=0), no claim that it builds / tests pass / is done without a check in the same turn (off with UE_WS_STATE_GUARD=0); project-writes only with UE_WS_PROJECT_WRITES=1, git-policy only with UE_WS_GIT_POLICY=1",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|mcp__.*unreal.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/editor-guard.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/no-tree-git-editor-open.mjs\"",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/git-policy.mjs\"",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/unbounded-wait-guard.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/project-writes.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/fork-context-guard.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/state-claim-guard.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/project-writes.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|PowerShell|mcp__.*unreal.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/editor-guard.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/format-after-edit.mjs\"",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/skill-lint-after-edit.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/unbounded-wait-guard.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/subagent-engine-root.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/session-state.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/state-claim-guard.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
