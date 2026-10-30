@@ -125,11 +125,18 @@ export function ancestry(snap, pid) {
 	return chain;
 }
 
-/** The agent session the process `pid` runs under: the nearest claude.exe above it, as {pid, start}; null if none. */
-export function whoAmI(snap, pid = process.pid) {
+/**
+ * The agent session the process `pid` runs under: the nearest claude.exe above it, as {pid, start}; null if none.
+ * A launcher that forks and execs breaks the chain of parents: Git Bash `timeout` runs as timeout.exe under a bash
+ * fork that has already exited, so the walk up stops there. Claude Code passes its own pid down to every child in
+ * CLAUDE_PID, and the variable survives such a launcher; it is taken only when it names a live claude.exe.
+ */
+export function whoAmI(snap, pid = process.pid, env = process.env) {
 	if (!snap) return null;
 	const hit = ancestry(snap, pid).find((p) => AgentImages.has(p.name));
-	return hit ? { pid: hit.pid, start: hit.start } : null;
+	if (hit) return { pid: hit.pid, start: hit.start };
+	const claimed = byPid(snap).get(Number(env?.CLAUDE_PID));
+	return claimed && AgentImages.has(claimed.name) ? { pid: claimed.pid, start: claimed.start } : null;
 }
 
 const sameStart = (a, b) => a != null && b != null && Math.abs(a - b) <= StartSlackMs;
@@ -442,10 +449,17 @@ export function selftest() {
 		{ ...ed(305, A, false), q: 102 },                                       // launched by my script, still its child
 		{ ...ed(306, A, false), q: 777 },                                       // launcher already exited
 		{ p: 400, q: 102, n: 'dotnet.exe', c: 'dotnet "C:\\UE\\UnrealBuildTool.dll" ProjAEditor', s: ft(T) },
+		{ p: 500, q: 888, n: 'timeout.exe', c: 'timeout 60 node x', s: ft(T - 2e6) },  // its bash fork has exited
+		{ p: 501, q: 500, n: 'node.exe', c: 'node x', s: ft(T - 2e6 + 5) },
 	];
 	const snap = procs.map((r) => ({ pid: r.p, ppid: r.q, name: r.n.toLowerCase(), cmd: r.c, start: filetimeToMs(r.s) }));
 	const me = whoAmI(snap, 102);
 	eq(me?.pid, 100, 'whoAmI finds the nearest claude.exe');
+	eq(whoAmI(snap, 102, { CLAUDE_PID: '200' })?.pid, 100, 'a claude.exe above wins over CLAUDE_PID');
+	eq(whoAmI(snap, 501, {}), null, 'a chain broken by timeout.exe, no CLAUDE_PID: no session');
+	eq(whoAmI(snap, 501, { CLAUDE_PID: '100' }), { pid: 100, start: snap[1].start }, 'a chain broken by timeout.exe: CLAUDE_PID names the session');
+	eq(whoAmI(snap, 501, { CLAUDE_PID: '1' }), null, 'CLAUDE_PID that is not a claude.exe is ignored');
+	eq(whoAmI(snap, 501, { CLAUDE_PID: '4242' }), null, 'CLAUDE_PID of a gone process is ignored');
 	const mk = (proj, pid, owner) => writeMarker(proj, { pid, start: filetimeToMs(ft(T + pid)), image: 'x', gui: true, project: proj, owner });
 	mk(A, 300, { pid: 100, start: snap[1].start });                       // mine, GUI
 	mk(B, 302, { pid: 200, start: snap[4].start });                       // another live session
