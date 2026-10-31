@@ -14,6 +14,16 @@ project: its `CLAUDE.md`, `.claude/rules/`, architecture page, `.clang-format`.
    API), the owner's lifecycle.
 3. Say whether the change was built and whether tests ran — the check status is part of the review.
    Not built — write exactly that, not "looks correct".
+4. Before reporting, try to refute every finding against the code: a guard higher up the
+   stack, a guarantee in the base class or the engine (`engine-api.cmd`), a known idiom
+   (`hazards.cmd`) — an empty `UPROPERTY()` kept for GC, a raw `UObject*` in a local. Drop a
+   finding only when a concrete refutation is found, with its `file:line`; "seems debatable"
+   is not one — LLM verdicts flip under counter-argument, more often towards the wrong answer.
+   Neither proven nor refuted — keep it, marked "unconfirmed". Many findings (a branch before
+   release) — hand the check to a separate agent that gets only the finding and the code.
+
+Plain formatting and what the compiler catches are not findings: clang-format and the build
+own them.
 
 ## Scope of the check
 
