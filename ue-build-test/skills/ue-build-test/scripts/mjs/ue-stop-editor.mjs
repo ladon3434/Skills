@@ -22,8 +22,8 @@
 // neither, quit_editor through Python Remote Execution (ue-pyremote.mjs; on in every editor ue-launch-editor or the
 // MCP bridge starts), only after the toolsets found no dirty packages.
 //
-// Exit: 0 stopped (or nothing ran), 1 still running after the timeout, 2 refused, 3 only editors that are
-// not ours run.
+// Exit: 0 stopped (or nothing ran), 1 still running after the timeout, 2 refused (an editor that is not ours,
+// unsaved packages, the foreground window), 3 a GUI editor of this project was left alone (no --gui).
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
@@ -476,6 +476,11 @@ async function main() {
 			return 1;
 		}
 		for (const t of left) {
+			// An editor that never received a graceful request (nor a dirty-package check) is not killed outright.
+			if (t.notAsked) {
+				console.log(`pid ${t.pid}: NOT killed - no graceful close could be sent to it, so nothing checked what it holds. Stop it by hand.`);
+				continue;
+			}
 			console.log(`FORCE: hard-killing pid ${t.pid}.`);
 			if (IsWindows) spawnSync('taskkill', ['/PID', String(t.pid), '/F'], { stdio: 'ignore', windowsHide: true });
 			else {

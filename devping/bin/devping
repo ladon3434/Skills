@@ -1,2 +1,9 @@
 #!/bin/sh
-exec python "$(dirname "$0")/../skills/devping/scripts/devping.py" "$@"
+# A candidate must run: the Microsoft Store alias is a python on PATH that only prints an advert.
+S="$(dirname "$0")/../skills/devping/scripts/devping.py"
+for c in "$PYTHON" python python3; do
+	[ -n "$c" ] && "$c" -c "import sys" >/dev/null 2>&1 && exec "$c" "$S" "$@"
+done
+py -3 -c "import sys" >/dev/null 2>&1 && exec py -3 "$S" "$@"
+echo "devping: no Python 3 found - put python on PATH or set PYTHON" >&2
+exit 2

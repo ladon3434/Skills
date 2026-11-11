@@ -15,7 +15,7 @@
 //   - quarantined (flaky) tests run but never decide the verdict;
 //   - a run that never reached TEST COMPLETE fails, even with exit 0.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { exitWith, gate, gatePlan, renderCommand, Verdict } from './ue-gate.mjs';
@@ -149,7 +149,9 @@ function runOnce() {
 		const child = spawn(tools.unrealEditorCli, editorArgs, { stdio: args.verbose ? 'inherit' : 'ignore', windowsHide: true });
 		const timer = setTimeout(() => {
 			console.log(`ERROR: no exit after ${timeoutMin} min - killing this run's own headless editor (pid ${child.pid}).`);
-			child.kill();
+			// The whole tree: ShaderCompileWorker and the crash reporter outlive the editor and hold the DLLs otherwise.
+			if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+			else child.kill('SIGKILL');
 			done(null);
 		}, timeoutMin * 60 * 1000);
 		child.on('error', (e) => {

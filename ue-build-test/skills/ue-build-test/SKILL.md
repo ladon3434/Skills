@@ -21,8 +21,9 @@ fallback). What was found — `<skill>/scripts/ue-info.cmd`.
 
 ## Scripts
 
-All `.cmd` live in `<skill>/scripts/`, all take `--help` and `--dry-run` (prints the exact command
-line and what would block it, launching nothing). Long ones — `run_in_background: true`.
+All `.cmd` live in `<skill>/scripts/`, all take `--help`; the ones that build, launch, stop or delete
+also take `--dry-run` (prints the exact command line and what would block it, launching nothing). An unknown
+`--option` is refused. Long ones — `run_in_background: true`.
 
 | Script | What it does |
 | --- | --- |
@@ -78,8 +79,8 @@ The editor does not block `ue-game-build`: the Game target builds separate binar
   a person's), markers in `<project>/Saved/AgentEditors/` and machine limits are the `ue-workstation` skill,
   "Whose editor". Markers of headless editors are written by `ue-run-editor-headless`. A headless orphan may be
   closed with `ue-stop-editor.cmd --pid N`; a GUI orphan may not.
-- For a build: an Editor-target build waits while someone else's editor holds this project's DLLs; my own editor
-  has to be closed in a separate call. The scripts ask `ue-owner.mjs` themselves and wait `--wait` seconds
+- For a build: an Editor-target build is `DEFERRED` at once while an editor of this project is open (it holds the
+  DLLs) — my own editor has to be closed in a separate call, someone else's is waited for or asked about. The scripts ask `ue-owner.mjs` themselves and wait `--wait` seconds
   (default 600) only for what is not ours; `DEFERRED` is not an error but contention: read the reason. Everything
   at once: `node scripts/mjs/ue-owner.mjs status`.
 - Second line of defence — the `editor-guard` hook of the `ue-workstation` plugin (installed as a
