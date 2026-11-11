@@ -18,7 +18,7 @@
 // Exit 0 OK / REUSED / DRY-RUN, 1 REFUSED or FAILED, 3 TIMEOUT. The last line is the verdict.
 
 import { spawn } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { findProjectUproject, resolveEngine } from './ue-engine.mjs';
 import { preflight, projectInfo } from './ue-project.mjs';
@@ -87,6 +87,64 @@ if (!existsSync(exe)) verdict('FAILED', `${exe} does not exist`, 1);
 // and the answer on the port would be read as this editor's.
 const holder = info.serverKind !== 'none' ? portOwner(info.port) : null;
 if (holder) verdict('REFUSED', `port ${info.port} is already answered by pid ${holder} - an editor started now could not open its MCP server there. Give this project its own port (UE_MCP_PORT) or wait for that process to end.`, 1);
+
+// One launch of a project at a time. Two sessions that both pass canLaunch in the same second would both spawn; the
+// MCP bridge takes the same file (Saved/mcp-bridge/editor-launch.lock) for its own launches. The file names its
+// holder, so a lock whose holder is gone is stale at once; released when this script exits.
+const lockFile = join(info.project, 'Saved', 'mcp-bridge', 'editor-launch.lock');
+const takeLock = () => {
+	mkdirSync(join(info.project, 'Saved', 'mcp-bridge'), { recursive: true });
+	for (let attempt = 0; attempt < 2; attempt++) {
+		try {
+			const fd = openSync(lockFile, 'wx');
+			try {
+				writeFileSync(fd, String(process.pid));
+			} finally {
+				closeSync(fd);
+			}
+			process.on('exit', () => {
+				try {
+					unlinkSync(lockFile);
+				} catch {
+					/* gone */
+				}
+			});
+			return null;
+		} catch (e) {
+			if (e.code !== 'EEXIST') return null; // the lock cannot be taken at all (a read-only Saved): launch unlocked
+			let holderPid = 0;
+			let age = 0;
+			try {
+				holderPid = Number(readFileSync(lockFile, 'utf8').trim());
+				age = Date.now() - statSync(lockFile).mtimeMs;
+			} catch {
+				continue; // vanished between the two calls: take it
+			}
+			// The bridge holds the lock while it runs a --launch command: launched by it, this script is that launch.
+			if (holderPid > 0 && String(holderPid) === process.env.UE_LAUNCH_LOCK_HOLDER) return null;
+			let gone = false;
+			if (holderPid > 0) {
+				try {
+					process.kill(holderPid, 0);
+				} catch (err) {
+					gone = err.code === 'ESRCH';
+				}
+			}
+			if (gone || age > 270000) {
+				try {
+					unlinkSync(lockFile);
+				} catch {
+					/* somebody else removed it */
+				}
+				continue;
+			}
+			return holderPid || 'another process';
+		}
+	}
+	return 'another process';
+};
+const busy = takeLock();
+if (busy) verdict('REFUSED', `another launch of this project's editor is in progress (pid ${busy}) - wait for it; scripts/editor-ready.sh waits for the server`, 1);
 
 const since = Date.now();
 // detached + ignored stdio: the editor outlives this script; on Windows a non-detached child would sit in Node's

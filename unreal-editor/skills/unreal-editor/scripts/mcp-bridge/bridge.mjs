@@ -334,7 +334,8 @@ function launchEditor() {
 		return child.pid ?? null;
 	}
 	log(`launching: ${LaunchMode}`);
-	spawn(LaunchMode, { stdio: 'ignore', detached: true, windowsHide: true, shell: true }).unref();
+	// UE_LAUNCH_LOCK_HOLDER: a launcher that takes the same lock file (ue-launch-editor) knows the holder is its caller.
+	spawn(LaunchMode, { stdio: 'ignore', detached: true, windowsHide: true, shell: true, env: { ...process.env, UE_LAUNCH_LOCK_HOLDER: String(process.pid) } }).unref();
 	return null; // a shell command: the editor is found by its start time
 }
 
