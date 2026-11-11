@@ -259,6 +259,23 @@ def clone_graph(ref_name, text, language, seed, prefix):
     }
 
 
+def prune_cache():
+    """The cache holds the audio of every document ever read: chunks unused for DOC_TTS_CACHE_DAYS (30) go."""
+    try:
+        days = float(os.environ.get("DOC_TTS_CACHE_DAYS") or 30)
+    except ValueError:
+        days = 30.0
+    if days <= 0 or not CACHE.is_dir():
+        return
+    cutoff = time.time() - days * 86400
+    for p in CACHE.iterdir():
+        try:
+            if p.is_file() and p.stat().st_mtime < cutoff:
+                p.unlink()
+        except OSError:
+            pass
+
+
 def speak(text, voice_name, voice, label):
     """text -> list of audio files (one per chunk), cached by voice + text so a rerun resumes."""
     language = voice.get("language", DEFAULT_LANGUAGE)
@@ -266,9 +283,10 @@ def speak(text, voice_name, voice, label):
     clip_hash = hashlib.sha1(voice["clip"].read_bytes()).hexdigest()[:10]
     ref_name, parts = None, []
     pieces = chunks(text)
+    prune_cache()
     for i, piece in enumerate(pieces, 1):
         key = hashlib.sha1(f"{clip_hash}|{language}|{seed}|{piece}".encode()).hexdigest()[:16]
-        hit = next(iter(CACHE.glob(f"{key}.*")), None)
+        hit = next((p for p in CACHE.glob(f"{key}.*") if p.suffix != ".part"), None)
         if hit is None:
             ref_name = ref_name or upload(voice["clip"])
             t0 = time.time()
@@ -276,7 +294,10 @@ def speak(text, voice_name, voice, label):
                                   f"{label} {i}/{len(pieces)}")
             CACHE.mkdir(parents=True, exist_ok=True)
             hit = CACHE / f"{key}{ext}"
-            hit.write_bytes(data)
+            # Written whole or not at all: a run killed mid-write must not leave half a chunk to be reused.
+            part = hit.with_name(hit.name + ".part")
+            part.write_bytes(data)
+            os.replace(part, hit)
             print(f"  {i}/{len(pieces)}  {len(piece)} chars  {time.time() - t0:.0f} s", flush=True)
         parts.append(hit)
     return parts
@@ -404,6 +425,9 @@ def cmd_design(args):
         t0 = time.time()
         data, ext = run_graph(graph, f"design {name}")
         clip = dest / f"{name}{ext}"
+        if clip.exists() and not args.force:
+            # A designed voice is designed once: a second run would replace the clip every document was read with.
+            sys.exit(f"doc-tts: the voice {name} already exists ({clip}) - choose another name, or pass --force to replace it")
         clip.write_bytes(data)
         meta = {"instruction": args.instruction, "seed": seed, "language": language, "text": text,
                 "model": "Qwen3-TTS-12Hz-1.7B-VoiceDesign", "speak_seed": 1}
@@ -441,6 +465,7 @@ def main():
         ap.add_argument("--language", default=DEFAULT_LANGUAGE)
         ap.add_argument("--text", default=None, help="what the candidate says (also the reference transcript)")
         ap.add_argument("--dir", default=None, help=f"where to save (default {USER_VOICES})")
+        ap.add_argument("--force", action="store_true", help="replace a voice of the same name")
         return cmd_design(ap.parse_args(argv[1:]))
     if sub == "audition":
         ap = argparse.ArgumentParser(prog="doc_tts.py audition", description="one passage, several voices")

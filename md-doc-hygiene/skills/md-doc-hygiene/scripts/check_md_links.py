@@ -25,7 +25,8 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-LINK_RE = re.compile(r'\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
+# The target is either bare (no spaces) or in angle brackets: [x](<my file.md>).
+LINK_RE = re.compile(r'\[[^\]]*\]\((?:<([^>\n]+)>|([^)\s]+))(?:\s+"[^"]*")?\)')
 WIKI_RE = re.compile(r'\[\[([^\]]+)\]\]')
 INLINE_CODE_RE = re.compile(r'`[^`\n]*`')
 FENCE_RE = re.compile(r'^\s*(```|~~~)')
@@ -100,7 +101,8 @@ def check(root):
                 continue
             line = INLINE_CODE_RE.sub('', line)
 
-            for link in LINK_RE.findall(line):
+            for bracketed, bare in LINK_RE.findall(line):
+                link = bracketed or bare
                 if link.startswith(('http://', 'https://', 'mailto:', '#')):
                     continue
                 target = link

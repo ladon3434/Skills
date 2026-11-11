@@ -490,10 +490,13 @@ function exitWith(outcome, code, summary) {
 
 function analyze(o) {
 	let trace = o._[1];
+	// A file AND --latest: which one? The newest trace may even be another project's session.
+	if (o.latest && trace) return exitWith('FAILED', 2, `give a .utrace or --latest, not both (${trace})`);
 	if (o.latest || !trace) {
 		const all = findTraces(process.env, o.project ?? process.cwd());
 		if (!o.latest || !all.length) return exitWith('FAILED', 2, trace ? 'no trace' : 'give a .utrace or --latest (ue-trace find lists them)');
 		trace = all[0].path;
+		console.log(`latest  : ${trace}  (the newest of the project folder and the machine's trace store - check it is this session's)`);
 	}
 	trace = resolve(trace);
 	if (!existsSync(trace)) return exitWith('FAILED', 2, `${trace} does not exist`);

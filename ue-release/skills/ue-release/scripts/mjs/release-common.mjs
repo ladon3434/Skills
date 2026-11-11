@@ -118,6 +118,11 @@ export function runCommandlet(project, args, { dryRun = false, label = 'commandl
 		console.error(`REFUSED: cannot list processes - not starting ${label} blind next to an editor that may be running.`);
 		return 3;
 	}
+	// An editor whose command line cannot be read may be this project's: not known is not «none».
+	if (probe.opaque) {
+		console.error(`REFUSED: ${probe.opaque} editor process(es) do not show their command line - one may be this project's. Close it (or check it is another project's), then re-run ${label}.`);
+		return 3;
+	}
 	const running = describe(probe);
 	if (running) {
 		console.error(`REFUSED: an editor of ${project.name} runs (${running}) - close it (or wait for it), then re-run.`);

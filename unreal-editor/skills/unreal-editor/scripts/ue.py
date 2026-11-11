@@ -82,6 +82,10 @@ def check_owner(url, project=None):
         return None
     if out.returncode == 1:
         return (out.stdout or "").strip().replace("REFUSED: ", "", 1)
+    if out.returncode != 0:
+        # The check itself failed (the process query, no project found): say so instead of going on in silence.
+        why = (out.stdout or out.stderr or "").strip().splitlines()
+        sys.stderr.write("ue.py: could not tell whose editor answers on port %s (%s) - going on unchecked\n" % (m.group(1), why[-1] if why else "exit %s" % out.returncode))
     return None
 
 
@@ -128,6 +132,11 @@ class Client:
         except urllib.error.HTTPError as e:
             return e.code, None
         except (urllib.error.URLError, OSError) as e:
+            reason = getattr(e, "reason", e)
+            if isinstance(reason, TimeoutError) or "timed out" in str(reason):
+                # The server took the request and has not answered: the editor is up and still working on it.
+                raise McpError("no answer from %s in %ss - the editor is up and may still be running the call. Do not re-run a call "
+                               "that changes content: read the state back first. A longer wait: --timeout <seconds>" % (self.url, timeout or self.timeout))
             raise McpError("no MCP server at %s (%s) - is the editor up? scripts/editor-ready.sh waits for it" % (self.url, getattr(e, "reason", e)))
 
     def init(self):
@@ -220,7 +229,14 @@ def main(argv, raw=False):
     if refused:
         _out("ERROR: %s" % refused)
         return 2
-    client = Client(url, sid_file)
+    wait = 180
+    if "--timeout" in argv:
+        try:
+            wait = max(1, int(float(argv[argv.index("--timeout") + 1])))
+        except (IndexError, ValueError):
+            _out("ue.py: --timeout takes a number of seconds")
+            return 2
+    client = Client(url, sid_file, timeout=wait)
     try:
         if "--init" in argv:
             _out("session: %s  (%s, saved to %s)" % (client.init(), url, sid_file))

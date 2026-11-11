@@ -4,6 +4,7 @@
 
 import { findProjectUproject } from './ue-engine.mjs';
 import { projectInfo } from './ue-project.mjs';
+import { checkPort, snapshot, whoAmI } from './ue-owner.mjs';
 import { resolve } from 'node:path';
 
 export function parseSse(text) {
@@ -31,7 +32,15 @@ export function serverUrl(urlArg, projectArg) {
 	if (urlArg) return urlArg;
 	const uproject = projectArg ? (projectArg.toLowerCase().endsWith('.uproject') ? resolve(projectArg) : findProjectUproject(resolve(projectArg))) : findProjectUproject();
 	if (!uproject) throw new Error('no .uproject found (run inside the project, or pass --project / --url)');
-	return projectInfo(uproject, process.env, { withEngine: false }).url;
+	const info = projectInfo(uproject, process.env, { withEngine: false });
+	// The URL was derived from the project: the editor that answers there must be this project's (projects may
+	// share the default port, and a capture would open assets in the other one's editor).
+	const snap = snapshot();
+	if (snap) {
+		const r = checkPort(snap, whoAmI(snap), info.project, info.port);
+		if (!r.ok) throw new Error(r.reason);
+	}
+	return info.url;
 }
 
 export function connect(url, { name = 'unreal-editor-skill', timeoutMs = 300000 } = {}) {

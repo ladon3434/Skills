@@ -31,7 +31,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { findProjectUproject, resolveEngine } from '../mjs/ue-engine.mjs';
 import { preflight, projectInfo } from '../mjs/ue-project.mjs';
-import { canLaunch, claim, editors, sameProject, snapshot, whoAmI } from '../mjs/ue-owner.mjs';
+import { canLaunch, checkPort, claim, editors, sameProject, snapshot, whoAmI } from '../mjs/ue-owner.mjs';
 import { LaunchSwitch } from '../mjs/ue-pyremote.mjs';
 
 const Here = dirname(fileURLToPath(import.meta.url));
@@ -205,7 +205,23 @@ async function safeHandshake(timeoutMs) {
  * May this bridge launch an editor? {go: true}; {wait: reason} when this session's editor of the project is already
  * up (booting: wait for it, never start a second); {refuse: reason} otherwise.
  */
+/**
+ * Why the server that answers at the upstream URL is not this project's editor, or null when it is (or when
+ * nobody can tell). Projects may share the default port: without this the bridge of project A would proxy calls
+ * into project B's editor.
+ */
+function foreignUpstream() {
+	if (!Info) return null;
+	const snap = snapshot();
+	if (!snap) return null;
+	const r = checkPort(snap, whoAmI(snap), Info.project, Number(new URL(UpstreamUrl).port || 80));
+	return r.ok ? null : r.reason;
+}
+
 async function launchGuard() {
+	if (Info && LaunchMode === 'default' && Info.serverKind === 'none') {
+		return { refuse: 'the ModelContextProtocol plugin is not enabled in this project - an editor started now would never answer. Enable the plugin (references/mcp-bridge.md) or run the bridge with --launch none' };
+	}
 	if (Info) {
 		const pf = await preflight(Info, { probe: false });
 		const panel = pf.verdicts.find((v) => v.startsWith('RESTORE PANEL'));
@@ -314,6 +330,12 @@ async function connectFlow() {
 	launchFailedAt = 0;
 	launchRefused = null;
 	if (await safeHandshake(3000)) {
+		const foreign = foreignUpstream();
+		if (foreign) {
+			launchRefused = foreign;
+			log(`not using the server that answers: ${foreign}`);
+			return false;
+		}
 		log('upstream already up');
 		upstreamReady = true;
 		void refreshCache();
@@ -529,6 +551,12 @@ async function relayToEditor(msg) {
 	} catch (e) {
 		const conn = connectionErrorCode(e);
 		const what = `tool "${msg.params?.name}"`;
+		if (conn === 'ECONNREFUSED') {
+			// Nothing listens: the call never reached an editor, so there is nothing to read back.
+			markUpstreamDead(conn);
+			send(toolError(id, `EDITOR NOT RUNNING: nothing answers at ${UpstreamUrl}, so ${what} was NOT sent. Re-run this exact call: it reconnects (and relaunches a headless editor if none answers).`));
+			return;
+		}
 		if (conn) {
 			markUpstreamDead(conn);
 			send(toolError(id, `EDITOR DIED: the connection was lost while calling ${what} (${conn}). The next call reconnects (and relaunches a headless editor if none answers). A read: re-run it. A call that CHANGES content may have landed before the editor died - read the state back before re-running. If it repeats, read ${Info?.log ?? 'the editor log'}.`));
