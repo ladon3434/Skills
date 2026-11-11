@@ -53,6 +53,31 @@ function descriptorModules(path) {
 	return (json.Modules ?? []).map((m) => ({ name: m.Name, type: m.Type }));
 }
 
+/**
+ * The folder of a module: where its `<Name>.Build.cs` lies under `Source/` - usually `Source/<Name>`, but a project
+ * may group modules (`Source/Runtime/<Name>`). Not found - `Source/<Name>`, as before.
+ */
+export function moduleDir(sourceDir, name) {
+	const want = `${name}.build.cs`.toLowerCase();
+	const walk = (dir, depth) => {
+		let entries;
+		try {
+			entries = readdirSync(dir, { withFileTypes: true });
+		} catch {
+			return null;
+		}
+		if (entries.some((e) => e.isFile() && e.name.toLowerCase() === want)) return dir;
+		if (depth <= 0) return null;
+		for (const e of entries) {
+			if (!e.isDirectory() || /^(Private|Public|Classes|Internal|ThirdParty)$/i.test(e.name)) continue;
+			const hit = walk(join(dir, e.name), depth - 1);
+			if (hit) return hit;
+		}
+		return null;
+	};
+	return walk(sourceDir, 3) ?? join(sourceDir, name);
+}
+
 /** The `Source/<Module>` dirs (root-relative, `/`-separated) of every shipped module, and the content mounts
  *  (`/Game/` plus `/<Plugin>/` for each plugin with a Content folder). */
 export function projectLayout(root) {
@@ -60,7 +85,7 @@ export function projectLayout(root) {
 	const mounts = ['/Game/'];
 	const add = (base, descriptor) => {
 		for (const m of descriptorModules(descriptor)) {
-			if (ShippedTypes.has(m.type)) dirs.push(relative(root, join(base, 'Source', m.name)).split(sep).join('/'));
+			if (ShippedTypes.has(m.type)) dirs.push(relative(root, moduleDir(join(base, 'Source'), m.name)).split(sep).join('/'));
 		}
 	};
 	const project = readdirSync(root).find((f) => f.toLowerCase().endsWith('.uproject'));

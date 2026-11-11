@@ -268,13 +268,27 @@ let pendingClaim = null;
 function acquireLaunchLock() {
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
-			closeSync(openSync(LockFile, 'wx'));
+			const fd = openSync(LockFile, 'wx');
+			try {
+				writeFileSync(fd, String(process.pid)); // the holder: a lock whose holder is gone is stale at once
+			} finally {
+				closeSync(fd);
+			}
 			launchLockHeld = true;
 			return true;
 		} catch (e) {
 			if (e.code !== 'EEXIST') return false;
 			try {
-				if (Date.now() - statSync(LockFile).mtimeMs > StaleLockMs) {
+				const holder = Number(readFileSync(LockFile, 'utf8').trim());
+				let holderGone = false;
+				if (holder > 0) {
+					try {
+						process.kill(holder, 0);
+					} catch (err) {
+						holderGone = err.code === 'ESRCH';
+					}
+				}
+				if (holderGone || Date.now() - statSync(LockFile).mtimeMs > StaleLockMs) {
 					unlinkSync(LockFile); // a bridge that died mid-launch
 					continue;
 				}
@@ -537,7 +551,9 @@ async function relayToEditor(msg) {
 		try {
 			res = await upstreamRpc(msg, timeoutMs);
 		} catch (e) {
-			if (e.httpStatus && (await safeHandshake(5000))) {
+			// 400 / 404 is a session the editor no longer knows: nothing ran, a new session and a replay are safe.
+			// Any other status (a 5xx) may come after the tool did its work - replaying would run it twice.
+			if ([400, 404].includes(e.httpStatus) && (await safeHandshake(5000))) {
 				log(`upstream HTTP ${e.httpStatus}; re-handshake ok, replaying`);
 				res = await upstreamRpc(msg, timeoutMs);
 			} else throw e;

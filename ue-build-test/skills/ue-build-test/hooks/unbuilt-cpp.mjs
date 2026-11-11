@@ -10,7 +10,7 @@
 // the person may have said "do not build", or a header nothing includes leaves the DLL as it is. A new edit (or a
 // new file) reminds again. Off with UE_BT_STOP_CHECK=0. Fails open on anything unreadable.
 
-import { appendFileSync, existsSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,8 +24,20 @@ const LibExt = process.platform === 'win32' ? '.dll' : process.platform === 'dar
 export function moduleOf(path) {
 	const p = String(path).replace(/\\/g, '/');
 	if (!CppExt.test(p) || Generated.test(p)) return null;
-	const m = p.match(/^(.*)\/Source\/([^/]+)\/.+$/);
-	return m ? { owner: m[1], name: m[2] } : null;
+	const m = p.match(/^(.*)\/Source\/([^/]+)\/.+$/i);
+	if (!m) return null;
+	// The module is the folder that holds a <Name>.Build.cs: `Source/Runtime/MyMod/...` is MyMod, not Runtime.
+	// Read from disk when the file is there; a path that is only text keeps the first folder under Source/.
+	const top = `${m[1]}/Source`.toLowerCase();
+	for (let dir = p.slice(0, p.lastIndexOf('/')); dir.length > top.length && dir.toLowerCase().startsWith(top); dir = dir.slice(0, dir.lastIndexOf('/'))) {
+		try {
+			const build = readdirSync(dir).find((f) => /\.build\.cs$/i.test(f));
+			if (build) return { owner: m[1], name: build.replace(/\.build\.cs$/i, '') };
+		} catch {
+			break;
+		}
+	}
+	return { owner: m[1], name: m[2] };
 }
 
 /** Newest editor binary of the module (ms epoch), 0 when it was never built. */
@@ -87,7 +99,11 @@ function main() {
 			return;
 		}
 		const stale = unbuilt(edited);
-		if (!stale.length) return;
+		if (!stale.length) {
+			// Everything this session edited is built: its record has done its work.
+			for (const f of [listFile(sid), toldFile(sid)]) rmSync(f, { force: true });
+			return;
+		}
 		const key = staleKey(stale);
 		let told = '';
 		try { told = readFileSync(toldFile(sid), 'utf8'); } catch { /* never reported */ }
