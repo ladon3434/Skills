@@ -5,7 +5,7 @@ not started. Works in any project.
 
 ## Contents
 
-Paths are relative to the skill folder `skills/ue-content-gates/`; `.claude-plugin/`, `hooks/hooks.json`, `bin/`, `agents/` sit at the plugin root.
+Paths are relative to the skill folder `skills/ue-content-gates/`; `.claude-plugin/` and `bin/` sit at the plugin root.
 
 | Path | What |
 | --- | --- |

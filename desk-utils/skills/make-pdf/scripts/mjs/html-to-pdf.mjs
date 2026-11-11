@@ -58,6 +58,14 @@ function main(argv) {
 		return browser ? 0 : 2;
 	}
 	const pos = argv.filter((a, i) => !a.startsWith('--') && !['--wait', '--width', '--height'].includes(argv[i - 1]));
+	// A mistyped flag must not be dropped in silence, and a number must be a number before it reaches the browser.
+	const Known = ['--png', '--header-footer', '--wait', '--width', '--height', '--where', '--landscape-hint'];
+	const unknown = argv.filter((a) => a.startsWith('--') && !Known.includes(a));
+	const badNumber = ['--wait', '--width', '--height'].filter((f) => flag(f) && !/^[0-9]+$/.test(String(opt(f, ''))));
+	if (unknown.length || badNumber.length) {
+		console.error(`html-to-pdf: ${unknown.length ? `unknown option ${unknown.join(', ')}` : `${badNumber.join(', ')} takes a whole number`}`);
+		return 2;
+	}
 	if (pos.length < 2) {
 		console.error('usage: html-to-pdf <input.html> <out.pdf|out.png> [--png] [--header-footer] [--wait <ms>] [--width N --height N] | --where');
 		return 2;

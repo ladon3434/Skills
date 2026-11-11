@@ -26,6 +26,8 @@ function buildVersion(unrealHome) {
 export function engineContext(start, env = process.env) {
 	const engine = resolveEngine(env, start);
 	if (!engine.unrealHome) return '';
+	// Outside an Unreal project an engine found only through the built-in default version is noise for the subagent.
+	if (!projectInfo(start, env) && !env.UNREAL_HOME && !env.UE_VERSION) return '';
 	const version = buildVersion(engine.unrealHome) ?? engineVersion(env, start).version;
 	const project = projectInfo(start, env);
 	return `Unreal Engine ${version} root on this machine: ${engine.unrealHome} (engine source under Engine/Source, engine plugins under Engine/Plugins).`

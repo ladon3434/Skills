@@ -94,14 +94,19 @@ function loadToolList(file) {
 	const j = JSON.parse(readFileSync(file, 'utf8'));
 	return { tools: Array.isArray(j.tools) ? j.tools : [] };
 }
-try {
-	if (existsSync(CacheFile)) cachedTools = loadToolList(CacheFile);
-	else if (SeedFile && existsSync(SeedFile)) {
-		cachedTools = loadToolList(SeedFile);
-		log(`no runtime tool cache yet; serving the seed ${SeedFile} until the first live tools/list`);
+// A cache that cannot be read, or that holds no tool, is no cache: with nothing to call the client would never
+// make the call that boots the editor and refreshes it. The seed stands in for it.
+for (const [file, what] of [[CacheFile, 'the runtime tool cache'], [SeedFile, 'the seed']]) {
+	if (cachedTools || !file || !existsSync(file)) continue;
+	try {
+		const list = loadToolList(file);
+		if (list.tools.length) {
+			cachedTools = list;
+			if (file === SeedFile) log(`no usable runtime tool cache; serving the seed ${SeedFile} until the first live tools/list`);
+		} else log(`${what} ${file} lists no tools - ignored`);
+	} catch (e) {
+		log(`failed to read ${what}:`, e.message);
 	}
-} catch (e) {
-	log('failed to read the tool cache:', e.message);
 }
 
 /** Is the editor alive and merely slow? A live process keeps writing its log; a dead one or one on a modal stops. */
@@ -540,6 +545,11 @@ async function relayToEditor(msg) {
 }
 
 async function handleMessage(msg) {
+	if (Array.isArray(msg)) {
+		send(makeError(null, -32600, 'JSON-RPC batches are not supported by the bridge'));
+		return;
+	}
+	if (typeof msg?.method !== 'string') return; // a response from the client, or not a request at all: nothing to answer
 	const { id, method } = msg;
 	const isNotification = id === undefined || id === null;
 	if (method === 'initialize') {

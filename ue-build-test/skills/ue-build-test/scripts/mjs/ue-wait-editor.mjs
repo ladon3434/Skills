@@ -17,6 +17,7 @@ import { dirname, join, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { editorsOfProject } from './ue-proc.mjs';
+import { portOwner } from './ue-owner.mjs';
 import { locateProject, parseArgs } from './ue-tools.mjs';
 
 export const ReadyMarker = 'Engine is initialized';
@@ -66,7 +67,9 @@ async function main() {
 		const logPath = args.log ?? join(projectDir, 'Saved', 'Logs', e.headless.length ? `${name}-Headless.log` : `${name}.log`);
 		// No editor start time (none running yet, or the query gave none): only a log written since this wait began counts.
 		const startMs = Math.max(0, ...[...e.start.values()].filter((v) => typeof v === 'number'));
-		if (port ? await portOpen(port) : logSaysReady(logPath, startMs || started - 5000)) {
+		// A port somebody else answers on is not this project's editor being ready.
+		const ours = (p) => { const owner = portOwner(p); return owner == null || !e.precise || e.pids.includes(owner); };
+		if (port ? (await portOpen(port)) && ours(port) : logSaysReady(logPath, startMs || started - 5000)) {
 			console.log(`READY after ${Math.round((Date.now() - started) / 1000)}s${port ? ` (port ${port})` : ` (${logPath})`}`);
 			return 0;
 		}

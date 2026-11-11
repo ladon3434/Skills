@@ -155,7 +155,8 @@ def default_voice_name(voices):
     if want:
         return want
     marked = [n for n, v in voices.items() if v.get("default")]
-    return marked[0] if marked else (sorted(voices)[0] if len(voices) == 1 else None)
+    # The user's folder is read last (all_voices): its default wins over the shipped one.
+    return marked[-1] if marked else (sorted(voices)[0] if len(voices) == 1 else None)
 
 
 def pick_voice(name):
@@ -354,7 +355,7 @@ def cmd_read(args):
         vname, voice = pick_voice(args.voice)
         ffmpeg()
     for md in files:
-        text = clean_markdown(md.read_text(encoding="utf-8"))
+        text = clean_markdown(md.read_text(encoding="utf-8-sig"))   # -sig: a BOM must not hide the front matter
         if not text.strip():
             print(f"skipped (empty): {md}")
             continue
@@ -413,7 +414,7 @@ def cmd_design(args):
 def cmd_audition(args):
     """The same passage read by several voices, to choose by ear."""
     src = Path(args.source)
-    text = clean_markdown(src.read_text(encoding="utf-8")) if src.is_file() else args.source
+    text = clean_markdown(src.read_text(encoding="utf-8-sig")) if src.is_file() else args.source
     if len(text) > args.chars:
         text = text[:args.chars].rsplit(" ", 1)[0]
     voices = all_voices()

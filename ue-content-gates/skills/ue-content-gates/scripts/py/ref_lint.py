@@ -142,7 +142,12 @@ def main(argv):
         except (uasset.PackageError, OSError) as e:
             unreadable.append(f"{f}: {e}")
             continue
-        for rule, ref, flags in violations(name or str(f), p.is_map, p.dependencies(), rules):
+        try:
+            deps = p.dependencies()
+        except (uasset.PackageError, IndexError, ValueError) as e:   # a corrupt import table
+            unreadable.append(f"{f}: {e}")
+            continue
+        for rule, ref, flags in violations(name or str(f), p.is_map, deps, rules):
             findings.append((name or str(f), ref, flags, rule))
     for pkg, ref, flags, rule in findings:
         kind = "+".join(k for k in ("hard", "soft") if flags[k])

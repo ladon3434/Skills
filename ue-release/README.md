@@ -5,7 +5,7 @@ bundled PSO cache, localization coverage, then the project's own packaging comma
 
 ## Contents
 
-Paths are from the skill folder `skills/ue-release/`; `.claude-plugin/`, `hooks/hooks.json`, `bin/`, `agents/` are at the plugin root.
+Paths are from the skill folder `skills/ue-release/`; `.claude-plugin/` is at the plugin root.
 
 | Path | What |
 | --- | --- |

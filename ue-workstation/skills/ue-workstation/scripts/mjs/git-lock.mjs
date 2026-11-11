@@ -56,7 +56,9 @@ export function gitProcesses() {
 export function lockVerdict(procs) {
 	if (procs === null) return { remove: false, writers: [] };
 	const writers = procs.filter((p) => { const v = gitVerb(p.cmdline); return v !== null && IndexWriters.has(v); });
-	return { remove: writers.length === 0, writers };
+	// A git whose command line cannot be read (another user's, an elevated one) may be the writer: leave the lock.
+	const unknown = procs.filter((p) => !String(p.cmdline ?? '').trim());
+	return { remove: writers.length === 0 && unknown.length === 0, writers: [...writers, ...unknown] };
 }
 
 /** Sweep `repo`'s index.lock. Returns a line to print, or null when there is no lock. */

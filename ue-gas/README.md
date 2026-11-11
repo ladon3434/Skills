@@ -6,7 +6,7 @@ source, with corrections for 5.5+ checked against the plugin source. Not tied to
 
 ## Contents
 
-Paths are relative to the skill folder `skills/ue-gas/`; `.claude-plugin/`, `hooks/hooks.json`, `bin/`, `agents/` live at the plugin root.
+Paths are relative to the skill folder `skills/ue-gas/`; `.claude-plugin/` lives at the plugin root.
 
 | Path | What |
 | --- | --- |

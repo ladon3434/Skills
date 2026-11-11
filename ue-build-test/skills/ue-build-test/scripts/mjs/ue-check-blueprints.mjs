@@ -299,6 +299,11 @@ async function main() {
 		console.log(`Blueprints FAILED. Full log: ${logPath}`);
 		exitWith(Kind, Verdict.Failed, 1);
 	}
+	if (!compiled) {
+		// The commandlet finished and loaded nothing: the allow list or the folder matched no Blueprint.
+		console.log(`No Blueprint was loaded - nothing was compiled, so nothing was checked. Full log: ${logPath}`);
+		exitWith(Kind, Verdict.Failed, 1);
+	}
 	console.log(`Every Blueprint compiled (${compiled}).`);
 	exitWith(Kind, Verdict.Ok, 0);
 }

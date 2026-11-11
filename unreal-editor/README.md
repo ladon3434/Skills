@@ -18,7 +18,7 @@ machine it waits. Details — the `ue-workstation` skill, "Whose editor".
 
 ## Contents
 
-Paths are relative to the skill folder `skills/unreal-editor/`; `.claude-plugin/`, `hooks/hooks.json`, `bin/`, `agents/` sit in the plugin root.
+Paths are relative to the skill folder `skills/unreal-editor/`; `.claude-plugin/` sits in the plugin root.
 
 | Path | What |
 | --- | --- |

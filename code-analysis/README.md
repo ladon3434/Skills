@@ -5,7 +5,7 @@ debugging to the root cause.
 
 ## Contents
 
-Paths are relative to the skill folder `skills/code-analysis/`; `.claude-plugin/`, `hooks/hooks.json`, `bin/`, `agents/` sit at the plugin root.
+Paths are relative to the skill folder `skills/code-analysis/`; `.claude-plugin/`, `bin/` and `agents/` sit at the plugin root.
 
 | Path | What |
 | --- | --- |

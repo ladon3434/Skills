@@ -149,8 +149,14 @@ function runtimeSourceRoots() {
 	const roots = [];
 	const add = (descriptorPath, base) => {
 		let d;
-		try { d = JSON.parse(readFileSync(descriptorPath, 'utf8')); } catch { return; }
-		for (const m of d.Modules ?? []) if (!skip.test(m.Type ?? '')) roots.push(join(base, 'Source', m.Name));
+		// A descriptor that cannot be read hides its modules from the scan: say so (a BOM alone is not a reason).
+		try { d = JSON.parse(readFileSync(descriptorPath, 'utf8').replace(/^﻿/, '')); } catch (e) { warn(`${rel(descriptorPath)} does not parse (${e.message}) - its modules were NOT scanned for debug code`); return; }
+		for (const m of d.Modules ?? []) {
+			if (skip.test(m.Type ?? '')) continue;
+			const dir = join(base, 'Source', m.Name);
+			if (existsSync(dir)) roots.push(dir);
+			else warn(`module ${m.Name} of ${rel(descriptorPath)} is not at ${rel(dir)} - NOT scanned for debug code`);
+		}
 	};
 	add(project.uproject, project.root);
 	for (const up of findFiles(join(project.root, 'Plugins'), /\.uplugin$/i)) add(up, join(up, '..'));
