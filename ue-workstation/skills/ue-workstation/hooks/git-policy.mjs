@@ -5,7 +5,9 @@
 //   commit  no -a/--all (stages everything tracked), no --amend, no -n/--no-verify
 //   push    no force of any kind (-f, --force, --force-with-lease, +refspec), no --delete/-d, `:branch`, --mirror
 //   any     no --no-verify
-//   history no reset --hard, clean -f, checkout/restore of the whole tree (`.`, `:/`), branch -D, stash clear
+//   history no reset --hard, clean -f, checkout/restore of the whole tree (`.`, `./`, `:/`), checkout -f,
+//           switch -f / --discard-changes, branch -D, stash clear, no `-c core.hooksPath=`
+//   Abbreviated long options (--amen, --forc, --har) count as the option; the text after -m / -F does not.
 //
 // Opt-in: off unless UE_WS_GIT_POLICY=1 (settings `env`, e.g. the project's untracked .claude/settings.local.json) —
 // a plugin must not change how a person's sessions use git without being asked to.
@@ -31,36 +33,46 @@ export function dropBodies(command) {
 }
 
 /** PURE: the reason a git call breaks the policy, else null. */
-export function violation({ sub, args }) {
+export function violation({ sub, args: raw, pre = [] }) {
+	// The value of -m / -F / --message / --file is text, not an option: `commit -m "--no-verify"` skips nothing.
+	const args = raw.filter((a, k) => !(k > 0 && (/^-[A-Za-z]*[mF]$/.test(raw[k - 1]) || ['--message', '--file'].includes(raw[k - 1]))) && !/^--(?:message|file)=/.test(a));
 	const has = (...flags) => args.some((a) => flags.includes(a));
+	// git takes any unambiguous abbreviation of a long option: --amen, --forc, --har.
+	const long = (full, min) => args.some((a) => a.startsWith('--') && a.split('=')[0].length >= min && full.startsWith(a.split('=')[0]));
 	const short = (letter) => args.some((a) => /^-[A-Za-z]+$/.test(a) && a.includes(letter));
 	const paths = args.filter((a) => !a.startsWith('-'));
-	if (has('--no-verify')) return '--no-verify skips the checks the repository asks for';
+	// `./`, `.\`, `./.` are the whole tree as much as `.` is.
+	const whole = (p) => ['.', '*', ':/', ':/*', '..'].includes(p.replace(/^(?:\.[\\/])+/, '').replace(/[\\/]+$/, '') || '.');
+	if (long('--no-verify', 6)) return '--no-verify skips the checks the repository asks for';
+	if (pre.some((p) => /^core\.hookspath=/i.test(p))) return '-c core.hooksPath=... switches the hooks of the repository off';
 	switch (sub) {
 		case 'add':
-			if (has('-A', '--all') || paths.some((p) => ['.', '*', ':/', ':/*'].includes(p))) return 'git add of everything: stage your own paths by name';
-			if (has('-u', '--update') && !paths.length) return 'git add -u without paths stages every tracked change';
+			if (has('--all') || short('A') || paths.some(whole)) return 'git add of everything: stage your own paths by name';
+			if ((short('u') || long('--update', 3)) && !paths.length) return 'git add -u without paths stages every tracked change';
 			return null;
 		case 'commit':
 			if (has('--all') || short('a')) return 'git commit -a stages every tracked change: git add <paths> first';
-			if (has('--amend')) return '--amend rewrites a commit: make a new one';
+			if (long('--amend', 4)) return '--amend rewrites a commit: make a new one';
 			if (short('n')) return 'git commit -n skips the hooks';
 			return null;
 		case 'push':
-			if (has('--force', '--force-with-lease', '--force-if-includes', '--mirror') || short('f') || args.some((a) => /^--force-with-lease=/.test(a))) return 'force push / mirror';
-			if (has('--delete') || short('d') || paths.some((p) => p.startsWith('+') || /^:\S/.test(p))) return 'push that deletes or force-updates a ref';
+			if (args.some((a) => /^--for/.test(a)) || long('--mirror', 3) || short('f')) return 'force push / mirror';
+			if (long('--delete', 4) || short('d') || paths.some((p) => p.startsWith('+') || /^:\S/.test(p))) return 'push that deletes or force-updates a ref';
 			return null;
 		case 'reset':
-			return has('--hard') ? 'reset --hard discards uncommitted work' : null;
+			return long('--hard', 3) ? 'reset --hard discards uncommitted work' : null;
 		case 'clean':
-			return has('--force') || short('f') ? 'clean -f deletes untracked files' : null;
+			return long('--force', 3) || short('f') ? 'clean -f deletes untracked files' : null;
+		case 'switch':
+			return long('--discard-changes', 4) || long('--force', 3) || short('f') ? 'switch that discards local changes' : null;
 		case 'checkout':
 		case 'restore': {
+			if (sub === 'checkout' && (long('--force', 3) || short('f'))) return 'checkout -f discards local changes';
 			const after = args.includes('--') ? args.slice(args.indexOf('--') + 1) : paths;
-			return after.some((p) => ['.', ':/', '*'].includes(p)) ? `${sub} of the whole tree discards uncommitted work` : null;
+			return after.some(whole) ? `${sub} of the whole tree discards uncommitted work` : null;
 		}
 		case 'branch':
-			return has('-D') || (has('--delete', '-d') && has('--force', '-f')) ? 'branch -D deletes an unmerged branch' : null;
+			return short('D') || ((long('--delete', 3) || short('d')) && (long('--force', 3) || short('f'))) ? 'branch -D deletes an unmerged branch' : null;
 		case 'stash':
 			return args.includes('clear') ? 'stash clear drops every stash' : null;
 		default:

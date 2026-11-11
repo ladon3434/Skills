@@ -20,7 +20,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { exitWith, gate, gatePlan, renderCommand, Verdict } from './ue-gate.mjs';
 import { editorsOfProject } from './ue-proc.mjs';
-import { fullPassFilter, scanSuites } from './ue-test-suites.mjs';
+import { fullPassFilter, scanSuites, shortSuites } from './ue-test-suites.mjs';
 import { failureReport, judgeRun, loadQuarantine, parseRunLog } from './ue-test-log.mjs';
 import { binariesStale, parseArgs, resolveTools } from './ue-tools.mjs';
 
@@ -183,6 +183,12 @@ const c = verdict.cls;
 console.log('');
 console.log(`passed ${c.passed}, failed ${c.failed.length}, incomplete ${c.incomplete.length}, quarantined ${c.quarantined.length}, skipped/not run ${c.skipped}`);
 for (const l of failureReport(run, [...c.failed, ...c.incomplete])) console.log(l);
+if (!explicit) {
+	// "At least one test per suite" is a weak floor; the source says how many declarations each suite has.
+	for (const s of shortSuites(scanSuites(tools.projectDir).declared, [...new Set([...run.started, ...run.results.keys()])])) {
+		console.log(`WARNING: suite ${s.suite} ran ${s.ran} test(s), the source declares ${s.declared} - some did not register (a cold start, an old DLL, a module that did not load) or are excluded by their flags. Check the names in the log.`);
+	}
+}
 for (const p of c.quarantined) {
 	const e = quarantine.entries.find((q) => p.toLowerCase().startsWith(q.token.toLowerCase()));
 	console.log(`QUARANTINED ${p}: FAIL (not gating; ${e?.reason || 'no reason'}, since ${e?.since || '?'})`);

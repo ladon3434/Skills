@@ -28,13 +28,12 @@
 // WHAT COUNTS AS DISCARDED: the call is the WHOLE statement, `Reader(a, b);`. `if(!Reader(...))`, `return
 // Reader(...)`, `const bool bOk = Reader(...)`, `ensure(Reader(...))`, `Out.Add(Reader(...))` all use it.
 //
-// NOT SEEN (a clean run is not a proof — the gate reads statements, it does not parse C++): a discarded call
-// inside a lambda body or any other parenthesised argument (`AsyncTask(..., [&]{ Reader(a, b); })`); a call
-// reached through a chain with `()` or `[]` (`FHelper::Get().Read(a, b);`, `GetHelper()->Read(...)`,
-// `Items[0].Read(...)`); a call with explicit template arguments (`Read<FVector>(a, b);`); the statement after
-// a `case X:` / `default:` label or in a `do` body; a reader declared `... const override;` or with a
-// `TArray<const T*>&` out-parameter (not taken into the inventory). `[[nodiscard]]` on the declaration closes
-// all of these at compile time.
+// Seen wherever a statement stands: in a lambda body, after `else` / `do` / a `case X:` or `default:` label, and
+// through a chain that calls or indexes on the way (`FHelper::Get().Read(a, b);`, `GetHelper()->Read(...)`,
+// `Items[0].Read(...)`, `Read<FVector>(a, b);`).
+// NOT SEEN (a clean run is not a proof — the gate reads statements, it does not parse C++): a call hidden behind
+// a macro, a comma expression, a cast to void that is not `// verdict-ok`, a chain whose intermediate call has
+// nested parentheses (`Get(Make(x)).Read(a, b);`). `[[nodiscard]]` on the declaration closes these at compile time.
 //
 // THE DELIBERATE DISCARD: `// verdict-ok: <why>` on the statement's line or the line above.
 // The compiler-enforced alternative for NEW readers is `[[nodiscard]]` on the declaration; this gate covers the
@@ -124,7 +123,7 @@ export function readSource(text) {
 
 // --- the reader inventory -------------------------------------------------------------------------------------
 
-const SIGNATURE = /\b(?:bool|FString)\s+(?:[A-Za-z_]\w*::)*([A-Za-z_]\w*)\s*\(([^;{)]*(?:\([^)]*\)[^;{)]*)*)\)\s*(?:const\s*)?[;{]/g;
+const SIGNATURE = /\b(?:bool|FString)\s+(?:[A-Za-z_]\w*::)*([A-Za-z_]\w*)\s*\(([^;{)]*(?:\([^)]*\)[^;{)]*)*)\)\s*(?:(?:const|override|final|noexcept)\s*)*[;{]/g;
 
 export function splitParams(params) {
 	const out = [];
@@ -141,7 +140,10 @@ export function splitParams(params) {
 
 /** A parameter the callee writes back: a non-const reference, or a pointer-to-pointer. */
 export function isOutParam(param) {
-	const declaration = (param.split('=')[0] ?? '').trim();
+	// Template arguments are not the parameter's own qualifiers: `TArray<const FItem*>&` is written back,
+	// `TFunctionRef<void(FItem&)>` is not.
+	let declaration = (param.split('=')[0] ?? '').trim();
+	for (let prev = null; prev !== declaration;) { prev = declaration; declaration = declaration.replace(/<[^<>]*>/g, ''); }
 	const marker = declaration.search(/&|\*\s*\*/);
 	if (marker < 0) return false;
 	return !/\bconst\b/.test(declaration.slice(0, marker + 1));
@@ -157,7 +159,10 @@ export function readersIn(text) {
 
 // --- the statement machine ------------------------------------------------------------------------------------
 
-const CALL = /^([A-Za-z_]\w*(?:\s*(?:::|->|\.)\s*[A-Za-z_]\w*)*)\s*\(([\s\S]*)\)$/;
+// A chain of names, each of which may carry template arguments and be called or indexed on the way:
+// `Reader`, `Helper.Read`, `FHelper::Get().Read`, `GetHelper()->Read`, `Items[0].Read`, `Read<FVector>`.
+const LINK = String.raw`[A-Za-z_]\w*(?:\s*<[^<>;(){}]*>)?(?:\s*\([^()]*\)|\s*\[[^\]]*\])*`;
+const CALL = new RegExp(String.raw`^(${LINK}(?:\s*(?:::|->|\.)\s*${LINK})*)\s*\(([\s\S]*)\)$`);
 const CONTROL_HEADER = /(^|[^\w])(if|while|for|switch|catch)\s*\($/;
 
 function balanced(inner) {
@@ -174,14 +179,16 @@ export function findings(text, file, readers) {
 	const { code } = source;
 	const out = [];
 	let start = 0, depth = 0;
+	const lambdas = [];
 	const judge = (statement, offset) => {
-		const body = statement.replace(/^\s*else\b/, '');
+		// What may stand before the call in the same statement: `else`, `do`, a `case X:` / `default:` label.
+		const body = statement.replace(/^(?:\s*(?:else\b|do\b|default\s*:(?!:)|case\b(?:[^:;{}]|::)*:(?!:)))+/, '');
 		const trimmed = body.trim();
 		if (!trimmed) return;
 		const call = CALL.exec(trimmed);
 		if (!call || !balanced(call[2] ?? '')) return;
-		const chain = call[1].split(/::|->|\./);
-		const callee = chain[chain.length - 1].trim();
+		// The callee is the name right before the final argument list, whatever the chain before it is.
+		const callee = /([A-Za-z_]\w*)\s*(?:<[^<>;]*>)?\s*$/.exec(call[1])?.[1] ?? '';
 		if (!readers.has(callee) && !ENGINE_READERS.has(callee)) return;
 		const at = offset + (statement.length - body.length) + body.indexOf(trimmed);
 		let line = 1;
@@ -198,7 +205,20 @@ export function findings(text, file, readers) {
 			if (depth === 0 && CONTROL_HEADER.test(code.slice(start, i + 1).replace(/\([\s\S]*$/, '('))) start = i + 1;
 			continue;
 		}
-		if (depth > 0) continue;
+		if (depth > 0) {
+			// A `{` inside parentheses opens a lambda body (or a braced initializer): its statements are judged like
+			// any others; the statement around it is kept and resumes at the matching `}`.
+			if (ch === '{') { lambdas.push({ depth, start, braces: 0 }); depth = 0; start = i + 1; }
+			continue;
+		}
+		const lambda = lambdas[lambdas.length - 1];
+		if (lambda && ch === '{') lambda.braces++;
+		else if (lambda && ch === '}') {
+			judge(code.slice(start, i), start);
+			if (lambda.braces > 0) { lambda.braces--; start = i + 1; }
+			else { lambdas.pop(); depth = lambda.depth; start = lambda.start; }
+			continue;
+		}
 		if (ch === ';' || ch === '{' || ch === '}') { judge(code.slice(start, i), start); start = i + 1; }
 	}
 	return out;
@@ -273,6 +293,17 @@ function selftest() {
 	eq(count('void F() { ParseVector(LocationJson, Location); }\n'), 1, 'a bare reader call is a discarded verdict');
 	eq(count('void F() {\n    ParseVector(A, B);\n    ParseVector(C, D);\n}\n'), 2, 'each one is its own finding');
 	eq(count('void F() { Property->ImportText_Direct(*Text, ValuePtr, nullptr, PPF_None); }\n'), 1, 'the named engine reader counts too');
+	eq(count('void F() { AsyncTask(T, [&]() { ParseVector(Json, Out); }); }\n'), 1, 'a discard inside a lambda body');
+	eq(count('void F() { D.AddLambda([this](int A) { if (A) { ParseVector(J, O); } ParseVector(K, P); }); }\n'), 2, 'and inside a nested block of it');
+	eq(count('void F() { Run([&]{ return ParseVector(Json, Out); }); }\n'), 0, 'a verdict returned from a lambda is used');
+	eq(count('void F() { FHelper::Get().ParseVector(Json, Out); }\n'), 1, 'through a chain that calls on the way');
+	eq(count('void F() { GetHelper()->ParseVector(Json, Out); Items[0].ParseVector(Json, Out); }\n'), 2, 'through -> after a call and after an index');
+	eq(count('void F() { ParseVector<FVector>(Json, Out); }\n'), 1, 'with explicit template arguments');
+	eq(count('void F() { switch (K) { case EKind::A: ParseVector(J, O); break; default: ParseVector(J, O); } }\n'), 2, 'after a case and a default label');
+	eq(count('void F() { do ParseVector(Json, Out); while (X); }\n'), 1, 'in a do body');
+	eq(count('void F() { FVector P{1, 2, 3}; Call(FBox{A, B}); }\n'), 0, 'a braced initializer is not a statement');
+	eq([...readersIn('bool Read(FItem& Out) const override;\nbool Fill(TArray<const FItem*>& Out);\nbool Each(TFunctionRef<void(FItem&)> Fn);\n')].sort(), ['Fill', 'Read'],
+		'a const override reader and a container out-parameter are readers; a callback taking a reference is not');
 	eq(count('void F() { if(!ParseVector(Json, Out)) { return; } }\n'), 0, 'a checked call');
 	eq(count('bool F() { return ParseVector(Json, Out); }\n'), 0, 'a returned verdict');
 	eq(count('void F() { const bool bOk = ParseVector(Json, Out); }\n'), 0, 'an assigned verdict');

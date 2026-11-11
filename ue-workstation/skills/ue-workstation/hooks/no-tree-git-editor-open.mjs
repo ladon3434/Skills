@@ -64,7 +64,7 @@ export function splitCommands(command) {
 }
 
 /**
- * PURE: every git call in a command line as {dir, sub, args, cd}: `dir` is the last `-C` value or null, `cd` the
+ * PURE: every git call in a command line as {dir, sub, args, cd, pre} (`pre`: git's own options before the verb): `dir` is the last `-C` value or null, `cd` the
  * folder a `cd` earlier in the line moved to (or null). Recognises `git`, `git.exe` and a full path to it at any
  * word of a simple command (after env assignments, `timeout N`, `$x =`, `{`, `then` ...) and inside the quoted
  * command of a shell wrapper. `gh pr checkout` is reported as sub `gh-pr-checkout`.
@@ -94,6 +94,7 @@ export function gitCalls(command, depth = 0) {
 		}
 		let i = GitWord.test(words[head]) ? head : words.findIndex((w, k) => k > head && GitWord.test(w) && !/\s/.test(w));
 		if (i < 0) continue;
+		const at = i;
 		let dir = null;
 		for (i++; i < words.length; i++) {
 			const w = words[i];
@@ -103,7 +104,7 @@ export function gitCalls(command, depth = 0) {
 			break;
 		}
 		if (i >= words.length) continue;
-		calls.push({ dir, sub: words[i].toLowerCase(), args: words.slice(i + 1), cd });
+		calls.push({ dir, sub: words[i].toLowerCase(), args: words.slice(i + 1), cd, pre: words.slice(at + 1, i) });
 	}
 	return calls;
 }

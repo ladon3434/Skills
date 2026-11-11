@@ -120,6 +120,7 @@ function callFile(id) {
 }
 
 function editorImagesRunning() {
+	if (process.env.UE_OWNER_FIXTURE) return true; // tests: the process table is the fixture, not this machine
 	try {
 		const out = execFileSync('tasklist', ['/FI', 'IMAGENAME eq UnrealEditor*', '/NH', '/FO', 'CSV'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true, timeout: 10000 });
 		return /^"UnrealEditor/im.test(out);

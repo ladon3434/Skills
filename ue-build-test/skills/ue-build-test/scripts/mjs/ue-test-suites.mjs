@@ -58,6 +58,7 @@ export function scanSuites(projectDir) {
 	const bare = new Set();
 	const dotted = new Set();
 	const generated = [];
+	const declared = {}; // suite -> number of declarations in the source
 	for (const top of ['Source', 'Plugins']) {
 		const abs = join(projectDir, top);
 		if (!existsSync(abs)) continue;
@@ -79,10 +80,28 @@ export function scanSuites(projectDir) {
 			const all = suitesInText(body);
 			const one = new Set(oneSegmentSuites(body));
 			for (const s of all) { suites.add(s); (one.has(s) ? bare : dotted).add(s); }
+			for (const m of stripComments(body).matchAll(DeclRe)) declared[m[1]] = (declared[m[1]] ?? 0) + 1;
 			if (declaresGeneratedDir(body)) generated.push(join(top, rel));
 		}
 	}
-	return { suites: [...suites].sort(), bare: [...bare].filter((s) => !dotted.has(s)).sort(), generated };
+	return { suites: [...suites].sort(), bare: [...bare].filter((s) => !dotted.has(s)).sort(), generated, declared };
+}
+
+/**
+ * Suites that ran FEWER tests than the source declares. A declaration is at least one test (a complex test or a
+ * spec is many), so the count of declarations is a floor: fewer tests than that means some never registered -
+ * the cold-start race, an old DLL, a module that did not load. Tests excluded by their flags make it a warning,
+ * not a verdict. `ranPaths` - every test path of the run. Pure.
+ * @returns {{suite: string, declared: number, ran: number}[]}
+ */
+export function shortSuites(declared, ranPaths) {
+	const out = [];
+	for (const [suite, n] of Object.entries(declared)) {
+		const prefix = `${suite.toLowerCase()}.`;
+		const ran = ranPaths.filter((p) => p.toLowerCase() === suite.toLowerCase() || p.toLowerCase().startsWith(prefix)).length;
+		if (ran > 0 && ran < n) out.push({ suite, declared: n, ran });
+	}
+	return out.sort((a, b) => a.suite.localeCompare(b.suite));
 }
 
 /** Every suite prefix declared under Source/ or Plugins/ of `projectDir`, sorted. */
@@ -155,6 +174,9 @@ export function selftest({ realProject } = {}) {
 		put('Source/Game/Private/Tests/Gen.cpp', 'TEST_CLASS(GenTests, GenerateTestDirectory)\n{\n};');
 		eq(fullPassFilter(root), 'StartsWith:Combat+StartsWith:Game+StartsWith:GameKit', 'fixture: full-pass filter');
 		eq(scanSuites(root).generated.length, 1, 'fixture: the file with a generated test directory is reported');
+		eq(Object.entries(scanSuites(root).declared).sort(), [['Combat', 1], ['Game', 1], ['GameKit', 1]], 'fixture: declarations counted per suite');
+		eq(shortSuites({ Game: 3, Combat: 1, Net: 2 }, ['Game.A', 'Combat.X', 'Combat.Y']), [{ suite: 'Game', declared: 3, ran: 1 }],
+			'a suite that ran fewer tests than it declares is short; one that ran none is the coverage check\'s business');
 		eq(fullPassFilter(join(root, 'nope')), '', 'no source -> empty filter');
 	} finally {
 		rmSync(root, { recursive: true, force: true });

@@ -3,7 +3,7 @@
 // Run: node tests/hooks-test.mjs   (or scripts\hooks-test.cmd). Non-zero exit on any mismatch.
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -150,6 +150,18 @@ try {
 	check(bad('git branch -D topic'), true, 'branch -D');
 	check(bad('git branch -d topic'), false, 'branch -d passes');
 	check(bad('git stash clear'), true, 'stash clear');
+	check(bad('git add ./'), true, 'add ./ is the whole tree');
+	check(bad('git add -vA'), true, 'add -vA');
+	check(bad('git commit --amen'), true, 'an abbreviated --amend');
+	check(bad('git push --forc origin main'), true, 'an abbreviated --force');
+	check(bad('git reset --har'), true, 'an abbreviated --hard');
+	check(bad('git checkout -f main'), true, 'checkout -f');
+	check(bad('git switch --discard-changes main'), true, 'switch --discard-changes');
+	check(bad('git switch main'), false, 'a plain switch passes');
+	check(bad('git -c core.hooksPath=/dev/null commit -m x'), true, 'hooks switched off through -c');
+	check(bad('timeout 60 git add -A'), true, 'a prefix does not hide the call');
+	check(bad('git commit -m "--no-verify is forbidden"'), false, 'a message that names an option is text');
+	check(bad('git commit -m "x" -- Source/A.cpp'), false, 'a commit with a message and paths passes');
 	check(bad('git commit -F - <<EOF\nnever git add . here\nEOF'), false, 'a heredoc body is text, not a call');
 	const gpol = (env) => runHook('git-policy.mjs', { tool_input: { command: 'git add -A' } }, env);
 	check(gpol({ UE_WS_GIT_POLICY: '' }).code, 0, 'switched off without UE_WS_GIT_POLICY=1 (plugin default)');
@@ -425,6 +437,34 @@ try {
 	rmSync(join(tmpdir(), 'ue-editor-guard', 'port-18777.json'), { force: true });
 	r = runHook('editor-guard.mjs', { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'never-seen', cwd: gp, tool_input: { command: 'ls' } }, env0);
 	check([r.code, r.stdout], [0, ''], 'PostToolUse without a PreToolUse record is silent');
+
+	// Adoption: which editors that appeared during a call become this session's.
+	const adoptFixture = () => {
+		const f = join(tmp, 'procs-adopt.json');
+		const born = ft(Date.now() + 1500);
+		writeFileSync(f, JSON.stringify({
+			processes: [
+				{ p: 900, q: 1, n: 'claude.exe', c: 'claude', s: ft(1e12) },
+				{ p: 601, q: 9991, n: 'UnrealEditor.exe', c: `"C:\\UE\\UnrealEditor.exe" "${join(gp, 'G.uproject')}"`, s: born },
+				{ p: 602, q: 9992, n: 'UnrealEditor-Cmd.exe', c: `"C:\\UE\\UnrealEditor-Cmd.exe" "${join(gp, 'G.uproject')}"`, s: born },
+				{ p: 603, q: 9993, n: 'UnrealEditor-Cmd.exe', c: `"C:\\UE\\UnrealEditor-Cmd.exe" "${join(other, 'O.uproject')}"`, s: born },
+			],
+			listeners: {},
+		}));
+		return { UE_OWNER_FIXTURE: f, CLAUDE_PID: '900' };
+	};
+	const marker = (proj, pid) => existsSync(join(proj, 'Saved', 'AgentEditors', `${pid}.json`));
+	const call = (id, command) => {
+		const env = adoptFixture();
+		const p = { tool_name: 'Bash', tool_use_id: id, cwd: gp, tool_input: { command } };
+		runHook('editor-guard.mjs', { hook_event_name: 'PreToolUse', ...p }, env);
+		return runHook('editor-guard.mjs', { hook_event_name: 'PostToolUse', ...p }, env);
+	};
+	call('adopt-1', 'echo hello');
+	check([marker(gp, 601), marker(gp, 602), marker(other, 603)], [false, true, false],
+		'an unrelated command adopts only a headless editor of its own project - never a window, never another project');
+	call('adopt-2', `node launch.mjs "${join(gp, 'G.uproject')}"`);
+	check(marker(gp, 601), true, 'a command that names the project may have started the window too');
 
 	// ---- install-editor-guard ------------------------------------------------------------------------------------
 	console.log('\n--- install-editor-guard ---');

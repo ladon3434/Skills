@@ -351,8 +351,17 @@ async function main(argv) {
 			console.log(`check FAILED for ${dir}:\n  ${problems.join('\n  ')}`);
 			return 1;
 		}
-		const n = JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8')).toolsets.length;
-		console.log(`check ok: ${n} toolsets in ${dir}${root ? ` (project ${root})` : ' (no project: --exclude only)'}`);
+		const index = JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8'));
+		console.log(`check ok: ${index.toolsets.length} toolsets in ${dir}${root ? ` (project ${root})` : ' (no project: --exclude only)'}`);
+		// The set is consistent; whether it still describes the engine on this machine is a separate fact.
+		try {
+			const eng = resolveEngine(process.env, uproject ?? process.cwd());
+			const build = eng.unrealHome ? JSON.parse(readFileSync(join(eng.unrealHome, 'Engine', 'Build', 'Build.version'), 'utf8')) : null;
+			const installed = build ? `${build.MajorVersion}.${build.MinorVersion}.${build.PatchVersion}` : null;
+			if (installed && (installed !== String(index.version) || Number(build.Changelist) !== Number(index.changelist))) {
+				console.log(`WARNING: the snapshots are of ${index.version} CL ${index.changelist}, the engine here is ${installed} CL ${build.Changelist} - a tool's parameters may have changed. Dump again from a live editor (dump-toolset-schemas without --check), or trust the editor's own tools/list over these files.`);
+			}
+		} catch { /* no engine on this machine: nothing to compare with */ }
 		return 0;
 	}
 	const out = resolve(at('--out') ?? DefaultOut);
