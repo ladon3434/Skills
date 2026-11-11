@@ -667,6 +667,11 @@ function main(args) {
 	}
 	const result = lint({ root, cfg, files });
 	report(result, { json: flags.has('--json'), verbose: flags.has('--verbose'), root, cfg });
+	// The whole project and not one package judged: a wrong root or an empty Content, not a clean project.
+	if (!files && result.checked === 0) {
+		console.error(`asset-name-lint: no package was judged under ${root} - a wrong project root or an empty Content; nothing was checked`);
+		return 2;
+	}
 	return result.problems.length ? 1 : 0;
 }
 

@@ -20,6 +20,8 @@ const Usage = 'usage: node capture-level.mjs --out <dir> --shot <name>:<x>,<y>,<
 export function parseShot(spec) {
 	const m = /^([A-Za-z0-9_.-]+):(-?[\d.]+),(-?[\d.]+),(-?[\d.]+):(-?[\d.]+),(-?[\d.]+)$/.exec(spec ?? '');
 	if (!m) return null;
+	// `1.2.3` passes the pattern and is not a number: a bad --shot is refused here, not sent to the editor as null.
+	if (!m.slice(2).every((v) => Number.isFinite(Number(v)))) return null;
 	return { name: m[1], loc: { x: +m[2], y: +m[3], z: +m[4] }, rot: { pitch: +m[5], yaw: +m[6] } };
 }
 

@@ -33,7 +33,8 @@ Mirrors the structure: `<src-root>/<rel>.md` → `<out-root>/<rel>.mp3`. Paths a
   `.gitignore` instead of silently putting mp3s into the repository.
 - `--dump-text` — save the cleaned text (one block per stand job) next to the mp3, to check what will be read.
 - `--engine edge [--voice ru-RU-SvetlanaNeural] [--rate +10%]` — the old cloud path (`pip install edge-tts`,
-  internet); default Edge voice `ru-RU-DmitryNeural`.
+  internet); default Edge voice `ru-RU-DmitryNeural`. It uploads the whole text of the document to Microsoft's
+  online speech service: not for confidential documents, and say so to the person before using it.
 
 Speed on an 8 GB laptop GPU: the first job of a stand run loads the model (a minute or more); after that roughly real
 time or slower — a long document takes a while, so run it in the background and say so.

@@ -317,7 +317,12 @@ function build(corpus, unrealHome, env) {
 	}
 
 	const home = indexHome(unrealHome);
-	mkdirSync(home, { recursive: true });
+	try {
+		mkdirSync(home, { recursive: true });
+	} catch (e) {
+		console.error(`engine-index: cannot create ${home} (${e.code ?? e.message}). An engine under Program Files is write-protected: set ENGINE_INDEX_HOME to a folder you can write and run again.`);
+		return false;
+	}
 	const finalPath = tagsPathFor(corpus, unrealHome);
 	const tempPath = `${finalPath}.building`;
 	const stampPath = stampPathFor(corpus, unrealHome);
@@ -527,6 +532,12 @@ stamp makes the selector refuse the index and answer through ripgrep instead.`);
 		process.exit(0);
 	}
 
+	// A build takes minutes and writes hundreds of MB: a mistyped --status must not start one.
+	const unknown = argv.filter((a) => !Corpora.some((c) => a === `--${c}`));
+	if (unknown.length) {
+		console.error(`engine-index: unknown argument ${unknown.join(' ')}. Usage: engine-index [${Corpora.map((c) => `--${c}`).join('|')}|--status]`);
+		process.exit(2);
+	}
 	const wanted = Corpora.filter((c) => argv.includes(`--${c}`));
 	const targets = wanted.length > 0 ? wanted : Corpora;
 	let ok = true;

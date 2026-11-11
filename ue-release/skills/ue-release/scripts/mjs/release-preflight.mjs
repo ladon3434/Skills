@@ -32,6 +32,14 @@ if (flags.has('help')) {
 const project = resolveProject(opts.get('project'));
 const platform = opts.get('platform') ?? 'Windows';
 const only = new Set((opts.get('only') ?? 'meta,branding,pso,debug').split(',').map((s) => s.trim()));
+// A check that was not run must not read as a pass: a mistyped name or flag is a usage error.
+const Checks = ['meta', 'branding', 'pso', 'debug'];
+const strangers = [...[...only].filter((c) => !Checks.includes(c)).map((c) => `--only ${c}`), ...[...flags].filter((f) => !['help', 'require-pso', 'selftest'].includes(f)).map((f) => `--${f}`),
+	...[...opts.keys()].filter((k) => !['project', 'platform', 'only'].includes(k)).map((k) => `--${k}`)];
+if (strangers.length) {
+	console.error(`release-preflight: unknown ${strangers.join(', ')}. Checks: ${Checks.join(', ')}; options: --project, --platform, --only, --require-pso.`);
+	process.exit(2);
+}
 
 let fails = 0;
 let warns = 0;
@@ -110,6 +118,7 @@ const NonShippingGuard = /UE_ENABLE_DEBUG_DRAWING|ENABLE_DRAW_DEBUG|WITH_EDITOR|
 // A member call `X.DrawCircle(` or a project method named DrawDebugShape is not one of them.
 const DebugDraw = /(?<![\w.>:])(DrawCentripetalCatmullRomSpline|DrawCircle|DrawDebug(?:2DDonut|AltCone|Box|Camera|Canvas2DBox|Canvas2DCircle|Canvas2DLine|CanvasCapsule|CanvasCircle|CanvasHalfCircle|CanvasLine|CanvasWireBox|CanvasWireCone|CanvasWireSphere|Capsule|Circle|CircleArc|Cone|CoordinateSystem|Crosshairs|Cylinder|DirectionalArrow|FloatHistory|Frustum|Line|Mesh|Point|SolidBox|SolidPlane|Sphere|String)|FlushDebugStrings|FlushPersistentDebugLines)\s*\(/;
 const ShippingOnly = /^\s*\(?\s*UE_BUILD_SHIPPING\s*\)?\s*$/;
+const NegatedNonShipping = /!\s*\(?\s*(?:defined\s*\(?\s*)?(?:UE_ENABLE_DEBUG_DRAWING|ENABLE_DRAW_DEBUG|WITH_EDITOR|UE_WITH_CHEAT_MANAGER|WITH_(?:DEV_)?AUTOMATION_TESTS|UE_BUILD_DEBUG|UE_BUILD_DEVELOPMENT|ALLOW_CONSOLE|WITH_CHEATS)\b/;
 
 /** PURE: per-line «inside a non-Shipping preprocessor branch» for C++ text. */
 export function guardedLines(text) {
@@ -125,7 +134,12 @@ export function guardedLines(text) {
 			else if (kw === 'else' && stack.length) stack[stack.length - 1].inElse = true;
 			else if (kw === 'endif') stack.pop();
 		}
-		out.push(stack.some((f) => (!f.inElse && NonShippingGuard.test(f.cond)) || (f.inElse && ShippingOnly.test(f.cond))));
+		// `#if !WITH_EDITOR` / `#ifndef UE_BUILD_DEVELOPMENT` is the code that DOES ship; its #else is the guarded side.
+		out.push(stack.some((f) => {
+			const negated = NegatedNonShipping.test(f.cond);
+			if (!f.inElse) return NonShippingGuard.test(f.cond) && !negated;
+			return ShippingOnly.test(f.cond) || negated;
+		}));
 	}
 	return out;
 }

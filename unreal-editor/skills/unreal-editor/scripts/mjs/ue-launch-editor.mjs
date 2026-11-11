@@ -49,6 +49,7 @@ if (flag('--help') || flag('-h')) {
 const projectArg = opt('--project');
 const uproject = projectArg ? (projectArg.toLowerCase().endsWith('.uproject') ? resolve(projectArg) : findProjectUproject(resolve(projectArg))) : findProjectUproject();
 if (!uproject) verdict('FAILED', 'no .uproject here or above - pass --project DIR', 1);
+if (!existsSync(uproject)) verdict('FAILED', `${uproject} does not exist`, 1);
 const info = projectInfo(uproject);
 if (info.engine?.error) verdict('FAILED', info.engine.error, 1);
 const headless = flag('--headless');

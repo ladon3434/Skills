@@ -168,6 +168,10 @@ export function judgeRun({ exitCode, run, filter, entries }) {
 	const onlyQuarantineFailed = exitCode !== 0 && run.complete && !cls.failed.length && !cls.incomplete.length && cls.quarantined.length > 0;
 	if (exitCode !== 0 && !onlyQuarantineFailed && !cls.failed.length && !cls.incomplete.length) reasons.push(`the editor exited ${exitCode} with no failing test in the log`);
 	if (missing.length) reasons.push(`0 tests ran for filter token(s): ${missing.join(', ')}`);
+	// Every selected test skipped or not run: nothing was verified, whatever the exit code says.
+	if (run.complete && cls.passed === 0 && !cls.failed.length && !cls.incomplete.length && !cls.quarantined.length && cls.skipped > 0) {
+		reasons.push(`no test passed: all ${cls.skipped} selected test(s) were skipped or not run`);
+	}
 	// A coverage under-run on an otherwise clean, complete run is the cold-boot discovery race: retry warm once.
 	const retryable = missing.length > 0 && run.complete && !cls.failed.length && !cls.incomplete.length;
 	return { ok: reasons.length === 0, retryable, reasons, cls, missing };

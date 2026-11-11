@@ -28,6 +28,13 @@ const SKILL_DOC = join(SKILL, 'references', 'ue-hazards.md');
 const PROJECT_DOC = process.env.KNOWN_HAZARDS
     || join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), '.claude', 'docs', 'known-hazards.md');
 const DOCS = [...new Set([PROJECT_DOC, SKILL_DOC])].filter((d) => existsSync(d));
+if (process.env.KNOWN_HAZARDS && !existsSync(process.env.KNOWN_HAZARDS)) {
+    console.error(`hazards: KNOWN_HAZARDS names ${process.env.KNOWN_HAZARDS}, which does not exist - only the shared file is searched`);
+}
+if (process.argv.slice(2).some((a) => a === '--help' || a === '-h')) {
+    console.log('usage: hazards <symptom words> [--brief]   sections whose heading or body matches\n       hazards                               the table of contents\n       hazards --index                       the same, numbered\n       hazards --section <N>                 one section by its number');
+    process.exit(0);
+}
 
 if (DOCS.length === 0) {
     console.error(`hazards: neither ${PROJECT_DOC} nor ${SKILL_DOC} exists`);

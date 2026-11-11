@@ -347,7 +347,8 @@ def cmd_status(args):
     topic = get_var(name)
     print("project:   %s" % project)
     print("window:    %s (%s = %s)" % (window_name(project), show_var_name(project), show_of(project)))
-    print("variable:  %s = %s" % (name, topic or "(none)"))
+    # The topic is the only secret and this output lands in a session transcript: show enough to recognise it.
+    print("variable:  %s = %s" % (name, (topic[:9] + "... (%d characters)" % len(topic)) if topic else "(none)"))
     print("server:    %s" % server_url())
     if has_legacy(project):
         print("WARNING:   an old per-project hook is still in %s - pings would come twice; "

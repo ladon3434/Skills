@@ -9,4 +9,6 @@ case "$1" in -h|--help) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esa
 PY=$(command -v python || command -v python3 || command -v py)
 [ -z "$PY" ] && { echo "python not found in PATH"; exit 2; }
 "$PY" "$HERE/ue.py" --init "$@" || exit $?
-"$PY" "$HERE/ue.py" --tools "$@" | head -3
+# The status is ue.py's, not head's: a failed listing must not exit 0.
+OUT=$("$PY" "$HERE/ue.py" --tools "$@") || { echo "$OUT"; exit 1; }
+echo "$OUT" | head -3

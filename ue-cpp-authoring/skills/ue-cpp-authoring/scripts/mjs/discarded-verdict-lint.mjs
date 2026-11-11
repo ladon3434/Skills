@@ -354,8 +354,15 @@ function main(argv) {
 		console.error('usage: discarded-verdict-lint <file...> | --all [--root <dir>]... [--with <dir>]... | --selftest');
 		return 2;
 	}
-	const rootOf = (f) => roots.filter((r) => f.startsWith(r + sep)).sort((a, b) => b.length - a.length)[0] ?? null;
+	// Windows paths differ in the case of the drive letter and of folders between tools: compare without it.
+	const rootOf = (f) => roots.filter((r) => f.toLowerCase().startsWith((r + sep).toLowerCase())).sort((a, b) => b.length - a.length)[0] ?? null;
 	const files = argv.includes('--all') ? roots.flatMap(sourceFiles) : given.filter((f) => rootOf(f) && ['.cpp', '.h'].includes(extname(f).toLowerCase()));
+	// A file named by hand that no root holds was not judged: say so instead of "ok (0 files)".
+	const outside = given.filter((f) => ['.cpp', '.h'].includes(extname(f).toLowerCase()) && !rootOf(f));
+	if (outside.length) {
+		console.error(`discarded-verdict-lint: ${outside.length} file(s) lie outside every root and were NOT judged (${outside.slice(0, 3).join(', ')}${outside.length > 3 ? ', ...' : ''}). Roots: ${roots.join(', ')} - pass --root <dir>.`);
+		if (!files.length) return 2;
+	}
 	const extraReaders = inventory(extra);
 	const found = [];
 	for (const root of roots) {

@@ -85,7 +85,7 @@ def code_mask(lines):
 
 
 def scan(path):
-    with open(path, encoding='utf-8') as f:
+    with open(path, encoding='utf-8-sig') as f:   # -sig: a BOM is not part of the first heading
         lines = f.readlines()
     mask = code_mask(lines)
     heads, blocks = [], set()
@@ -254,7 +254,10 @@ def main(root, fix, forbid_sections, whitespace, require_toc):
         if toc_changed:
             mask = code_mask(lines)
         if changed or toc_changed:
-            with open(p, 'w', encoding='utf-8', newline='\n') as f:
+            # Keep the document's own line endings: a CRLF file stays CRLF.
+            with open(p, 'rb') as f:
+                crlf = b'\r\n' in f.read()
+            with open(p, 'w', encoding='utf-8', newline='\r\n' if crlf else '\n') as f:
                 f.writelines(lines)
 
         for tag, ln, msg in check_tables(lines, mask):
@@ -324,13 +327,22 @@ def main(root, fix, forbid_sections, whitespace, require_toc):
               if fix else 'Run with --fix to renumber lists and rebuild tables of contents '
                           '(other references are never rewritten).')
         return 1
-    print('[SUCCESS] Numbering, headings, anchors, tables and tables of contents are clean.')
+    if not files:
+        print('[FAILED] no .md file under %s - a wrong folder; nothing was checked.' % root)
+        return 2
+    print('[SUCCESS] Numbering, headings, anchors, tables and tables of contents are clean (%d file(s)).' % len(files))
     return 0
 
 
 if __name__ == '__main__':
     flags = {a for a in sys.argv[1:] if a.startswith('--')}
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    unknown = flags - {'--fix', '--forbid-section-signs', '--no-whitespace', '--require-toc'}
+    if unknown:
+        # A mistyped --require_toc must not quietly check less than was asked.
+        print('Error: unknown option %s (known: --fix, --forbid-section-signs, --no-whitespace, --require-toc)'
+              % ', '.join(sorted(unknown)))
+        sys.exit(2)
     root = os.path.abspath(args[0] if args else '.')
     if not os.path.isdir(root):
         print('Error: directory not found: %s' % root)

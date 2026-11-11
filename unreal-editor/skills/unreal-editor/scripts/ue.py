@@ -231,9 +231,16 @@ def main(argv, raw=False):
             return 0
         if "--call" in argv:
             i = argv.index("--call")
+            if len(argv) < i + 3:
+                _out("usage: ue.py --call <toolset> <tool> ['<json args>' | -]   (- reads the JSON from stdin)")
+                return 2
             toolset, tool = argv[i + 1], argv[i + 2]
             arg = argv[i + 3] if len(argv) > i + 3 else "{}"
-            args = json.loads(sys.stdin.read() if arg == "-" else arg)
+            try:
+                args = json.loads(sys.stdin.read() if arg == "-" else arg)
+            except ValueError as e:
+                _out("ue.py --call: the arguments are not JSON (%s) - quote them as one argument, or pass - and pipe them in" % e)
+                return 2
             msg = call_tool(client, toolset, tool, args)
             _out(json.dumps(msg) if raw else (_text_of(msg) or json.dumps(msg)))
             return 1 if (msg or {}).get("error") or ((msg or {}).get("result") or {}).get("isError") else 0

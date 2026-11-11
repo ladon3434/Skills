@@ -28,7 +28,10 @@ export const Kinds = [
 	{ kind: 'blueprint', re: /(Warning|Error):.*Blueprint|LogBlueprint.*(Warning|Error)|Compile failed|LogScript.*(Warning|Error)/i },
 	{ kind: 'asset', re: /Failed to load|Failed to find|unresolved reference|is missing|Missing cached shader|Can't find file|Unable to load package/i },
 	{ kind: 'package-version', re: /Mismatched package version|newer engine version|Package .* has newer custom version/i },
-	{ kind: 'error', re: /\bError:/ },
+	// Compiler and linker lines carry no "Error:" - `A.cpp(12): error C2065: ...`, `error LNK2019: ...`, clang's
+	// `A.cpp:12:5: error: ...`; UBT and UAT end a failed step with an upper-case `ERROR:`.
+	{ kind: 'compile', re: /\b(?:fatal )?error (?:C|LNK|MSB|CS)\d{3,5}\b|:\d+:\d+: (?:fatal )?error: |\bUnrealBuildTool\b.*\bfailed\b/ },
+	{ kind: 'error', re: /\bError:|\bERROR:/ },
 ];
 
 /** Engine / third-party noise that matches a kind but is never actionable. */

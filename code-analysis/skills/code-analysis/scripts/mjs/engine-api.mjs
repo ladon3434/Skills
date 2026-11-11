@@ -94,7 +94,9 @@ session then pays nothing for it. Reading a file BODY is still a subagent's job 
 }
 
 const query = words[0];
-const [ownerType, member] = query.includes('::') ? query.split('::') : [null, null];
+// `Outer::Inner::Member`: the member is the last part, the owner the one before it (the type that declares it).
+const scoped = query.split('::');
+const [ownerType, member] = scoped.length > 1 ? [scoped[scoped.length - 2], scoped[scoped.length - 1]] : [null, null];
 const symbol = member || query;
 
 // #endregion
@@ -304,7 +306,17 @@ function rg(pattern, roots = searchRoots, extra = []) {
 		});
 	} catch (e) {
 		if (e.status === 1) return []; // rg: no match
-		throw e;
+		// A missing tool or a search that overflowed is a setup problem to name, not a stack trace.
+		if (e.code === 'ENOENT') {
+			console.error('engine-api: ripgrep (rg) is not on PATH - install it (winget install BurntSushi.ripgrep.MSVC) and run again. The copy inside Claude Code is not visible to scripts.');
+			process.exit(2);
+		}
+		if (e.code === 'ENOBUFS') {
+			console.error(`engine-api: the search for "${pattern}" returned too much - narrow it with --module <Name> or a longer symbol.`);
+			process.exit(2);
+		}
+		console.error(`engine-api: ripgrep failed (${e.status ?? e.code}): ${String(e.stderr ?? e.message).trim().split('\n')[0]}`);
+		process.exit(2);
 	}
 	return out
 		.split('\n')

@@ -77,15 +77,17 @@ def check(root):
     pages = wiki_index(root)
     attachments = attachment_index(root)
     bad = 0
+    scanned = 0
     print('Scanning: %s\n' % root)
     for path in sorted(md_files(root)):
         if os.path.basename(path) in SKIPPED_FILES:
             continue
+        scanned += 1
         rel = os.path.relpath(path, root)
         here = os.path.dirname(path)
         in_fence = False
         try:
-            lines = open(path, encoding='utf-8').read().splitlines()
+            lines = open(path, encoding='utf-8-sig').read().splitlines()   # -sig: a BOM is not part of line 1
         except (OSError, UnicodeDecodeError) as e:
             print('[READ] %s - %s' % (rel, e))
             bad += 1
@@ -129,7 +131,10 @@ def check(root):
     if bad:
         print('\n[FAILED] %d broken link(s).' % bad)
         return 1
-    print('[SUCCESS] All local markdown and wiki links resolve.')
+    if not scanned:
+        print('[FAILED] no .md file under %s - a wrong folder; nothing was checked.' % root)
+        return 2
+    print('[SUCCESS] All local markdown and wiki links resolve (%d file(s)).' % scanned)
     return 0
 
 

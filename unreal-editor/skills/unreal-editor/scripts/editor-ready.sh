@@ -28,6 +28,7 @@ if [ -z "$URL" ] || [ -z "$LOG" ]; then
   URL=${URL:-$INFO_URL}
   LOG=${LOG:-$INFO_LOG}
 fi
+command -v curl >/dev/null 2>&1 || { echo "editor-ready: curl is not on PATH - the server cannot be probed"; exit 2; }
 echo "waiting for $URL (log: $LOG, deadline ${DEADLINE}s)"
 
 start=$(date +%s)

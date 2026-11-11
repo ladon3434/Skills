@@ -473,11 +473,15 @@ export function crashFolders(project, env = process.env) {
 			if (!e.isDirectory()) continue;
 			const dir = join(b, e.name);
 			if (!existsSync(join(dir, XmlName)) && !existsSync(join(dir, DumpName))) continue;
+			// The crash's own files date it: a folder's time moves whenever anything is added to it.
 			let mtime = 0;
-			try {
-				mtime = statSync(dir).mtimeMs;
-			} catch {
-				// unreadable: keep it last
+			for (const f of [join(dir, XmlName), join(dir, DumpName), dir]) {
+				try {
+					mtime = statSync(f).mtimeMs;
+					break;
+				} catch {
+					// not there or unreadable: try the next; none - keep it last
+				}
 			}
 			out.push({ dir, mtime });
 		}

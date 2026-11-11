@@ -364,6 +364,8 @@ def cmd_read(args):
             out.with_suffix(".txt").write_text("\n\n".join(chunks(text)), encoding="utf-8")
         print(f"{md}  ->  {out}", flush=True)
         if args.engine == "edge":
+            # Not the local stand: say where the text goes before it goes.
+            print("  note: --engine edge sends this document's text to Microsoft's online speech service", flush=True)
             edge_synth(text, vname, args.rate, out)
         else:
             join_to_mp3(speak(text, vname, voice, md.name), out)

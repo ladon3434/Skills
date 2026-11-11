@@ -332,6 +332,9 @@ export async function preflight(info, { probe = true } = {}) {
 	if (restore && !restore.error && restore.packages > 0) {
 		verdicts.push(`RESTORE PANEL: PackageRestoreData.json lists ${restore.packages} package(s) - the next GUI launch stops on "restore unsaved assets?" which only a person can close. Tell the person BEFORE launching.`);
 	}
+	if (restore?.error) {
+		verdicts.push(`RESTORE DATA UNREADABLE (${restore.error}) - whether the next GUI launch stops on "restore unsaved assets?" is not known; look at Saved/Autosaves/PackageRestoreData.json by hand.`);
+	}
 	if (newestCrash) {
 		const ago = Math.round((Date.now() - newestCrash.at) / 60000);
 		verdicts.push(`last crash report ${ago} min ago: ${newestCrash.dir}${ago < 60 && info.logExists ? ' (a recent unclean exit)' : ''}`);
