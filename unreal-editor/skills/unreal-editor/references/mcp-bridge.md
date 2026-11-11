@@ -76,8 +76,8 @@ Before launching it refuses, with the reason in the tool answer, when:
    runs — the reason is quoted. A headless orphan elsewhere is named with the pid to stop first.
 
 When this session's own editor of the project is already up (still booting), it waits for it instead of starting a
-second one. Two bridges racing to launch are serialized by a file lock in the cache dir. Right after the spawn the
-bridge writes the ownership marker (for `--launch "<command>"` it finds the editor by its start time).
+second one. Two bridges racing to launch are serialized by a file lock in the cache dir. Within seconds of the spawn the
+bridge writes the ownership marker — retried while it waits for the editor, and once more if the client leaves first (for `--launch "<command>"` it finds the editor by its start time).
 
 ## Tests
 

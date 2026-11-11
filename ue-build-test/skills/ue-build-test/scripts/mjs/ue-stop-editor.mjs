@@ -403,17 +403,19 @@ async function main() {
 		if (!targets.length) return refused ? 2 : 3;
 	} else if (!targets.length) return refused ? 2 : 0;
 
-	for (const t of targets.filter((x) => !x.headless)) {
-		if (foregroundPid() === t.pid) {
+	for (const t of targets) {
+		if (!t.headless && foregroundPid() === t.pid) {
 			console.log(`REFUSED: ${describeEditor(t.editor)} is the foreground window - a person is looking at it. Ask before closing.`);
 			return 2;
 		}
 		const proj = t.editor.project ?? projectDir;
 		const d = proj ? await dirtyPackages(proj, t.pid) : { skipped: 'the editor names no project' };
+		// A never-saved map (/Temp/Untitled_N) of a headless editor is always dirty and holds nothing to lose.
+		if (t.headless && d.maps) d.maps = d.maps.filter((m) => !/^\/Temp\//i.test(m));
 		if (d.unknown?.length) console.log(`pid ${t.pid}: could not ask about ${d.unknown.join(', ')}.`);
-		if (d.skipped) console.log(`pid ${t.pid}: dirty-package check skipped - ${d.skipped}. If it has unsaved packages, closing stops on «save changes?».`);
+		if (d.skipped) console.log(`pid ${t.pid}: dirty-package check skipped - ${d.skipped}. If it has unsaved packages, ${t.headless ? 'closing drops them (a headless editor asks nothing)' : 'closing stops on «save changes?»'}.`);
 		else if (d.maps.length || d.content.length) {
-			console.log(`REFUSED: pid ${t.pid} has unsaved packages - closing would stop on «save changes?» and wait forever.`);
+			console.log(`REFUSED: pid ${t.pid} has unsaved packages - ${t.headless ? 'a headless editor asks nothing on quit, closing would drop them' : 'closing would stop on «save changes?» and wait forever'}.`);
 			if (d.maps.length) console.log(`  maps   : ${d.maps.join(', ')}`);
 			if (d.content.length) console.log(`  content: ${d.content.join(', ')}`);
 			console.log('  Save what this session changed, leave the rest to the person and tell them; then stop again.');

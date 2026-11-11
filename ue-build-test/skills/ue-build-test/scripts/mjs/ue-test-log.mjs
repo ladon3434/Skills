@@ -56,11 +56,34 @@ export function parseRunLog(text) {
 
 const startsWithCI = (path, token) => path.toLowerCase().startsWith(token.toLowerCase());
 
+/**
+ * Does a RunTests filter token select this test path? The engine's rules (AutomationCommandline.cpp):
+ * `StartsWith:X` is the prefix `X.`, `^X` a prefix, `X$` a suffix, a plain token a SUBSTRING. `Group:` tokens
+ * expand from ini and cannot be judged here: they count as matching. Case-insensitive. Pure.
+ */
+export function tokenMatches(path, token) {
+	const p = String(path).toLowerCase();
+	let t = String(token).trim().toLowerCase();
+	if (t.startsWith('group:')) return true;
+	if (t.startsWith('startswith:')) {
+		t = t.slice('startswith:'.length).trim();
+		return p.startsWith(t.endsWith('.') ? t : `${t}.`);
+	}
+	const fromStart = t.startsWith('^');
+	if (fromStart) t = t.slice(1);
+	const fromEnd = t.endsWith('$');
+	if (fromEnd) t = t.slice(0, -1);
+	if (fromStart && fromEnd) return p === t;
+	if (fromStart) return p.startsWith(t);
+	if (fromEnd) return p.endsWith(t);
+	return p.includes(t);
+}
+
 /** Filter tokens that selected ZERO tests in this run. Pure. */
 export function missingTokens(run, filter) {
 	const ran = new Set([...run.started, ...run.results.keys()]);
 	const tokens = String(filter).split('+').map((t) => t.trim()).filter(Boolean);
-	return tokens.filter((tok) => ![...ran].some((p) => startsWithCI(p, tok)));
+	return tokens.filter((tok) => ![...ran].some((p) => tokenMatches(p, tok)));
 }
 
 /**
@@ -77,7 +100,15 @@ export function readQuarantine(json) {
 			problems.push(`entry without a token: ${JSON.stringify(e)}`);
 			continue;
 		}
-		if (!e.reason || !e.since) problems.push(`${e.token}: needs "reason" and "since" (YYYY-MM-DD)`);
+		// An entry that would exempt a whole suite, or that nobody owns, is NOT applied: its tests gate as usual.
+		if (!e.token.includes('.')) {
+			problems.push(`${e.token}: IGNORED - a token must name a test or a group below a suite (Suite.Group...), not a whole suite`);
+			continue;
+		}
+		if (!e.reason || !e.since) {
+			problems.push(`${e.token}: IGNORED - needs "reason" and "since" (YYYY-MM-DD)`);
+			continue;
+		}
 		entries.push({ token: e.token.trim(), reason: String(e.reason ?? ''), since: String(e.since ?? '') });
 	}
 	return { entries, problems };
@@ -183,9 +214,18 @@ export function selftest() {
 	eq(run.performed, 3, 'performed count read');
 	eq(run.events.get('Game.Inventory.Remove').length, 1, 'the failing test keeps its error entry');
 
-	const q = readQuarantine({ quarantined: [{ token: 'Net.Flaky', reason: 'timing on CI', since: '2026-10-01' }, { token: 'Bad' }] });
-	eq(q.entries.length, 2, 'quarantine entries read');
-	eq(q.problems.length, 1, 'an entry without reason/since is flagged');
+	const q = readQuarantine({ quarantined: [
+		{ token: 'Net.Flaky', reason: 'timing on CI', since: '2026-10-01' }, { token: 'Game.NoOwner' },
+		{ token: 'Game', reason: 'everything', since: '2026-10-01' },
+	] });
+	eq(q.entries.map((e) => e.token), ['Net.Flaky'], 'only a complete, narrow entry is applied');
+	eq(q.problems.length, 2, 'an entry without reason/since and a whole-suite token are flagged and ignored');
+	eq(tokenMatches('Game.Inventory.Add', 'StartsWith:Game'), true, 'StartsWith: is the prefix "Suite."');
+	eq(tokenMatches('GameTools.Import', 'StartsWith:Game'), false, 'and stops at the dot');
+	eq(tokenMatches('Game.Inventory.Add', 'Inventory'), true, 'a plain token is a substring, as in the engine');
+	eq(tokenMatches('Game.Inventory.Add', '^Inventory'), false, '^ anchors the start');
+	eq(tokenMatches('Game.Inventory.Add', 'Add$'), true, '$ anchors the end');
+	eq(missingTokens(run, 'StartsWith:Game+StartsWith:Net+StartsWith:Combat'), ['StartsWith:Combat'], 'an unselected StartsWith token is an under-run');
 	eq(isQuarantined('net.flaky.Timing', q.entries), true, 'quarantine matches by case-insensitive prefix');
 	eq(isQuarantined('Net.Other', q.entries), false, 'and only by prefix');
 

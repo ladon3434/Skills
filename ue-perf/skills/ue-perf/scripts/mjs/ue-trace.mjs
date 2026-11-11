@@ -392,6 +392,7 @@ export function digestDir(dir, { threads, top = 12, window = {}, trace } = {}) {
 		const toRe = (p) => new RegExp(`^${p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i');
 		for (const p of threads) resolved[p] = threadRows.filter((r) => r.Group !== 'GPU' && r.Group !== 'Frame Tracks' && toRe(p).test(r.Name)).map((r) => r.Name);
 	}
+	const partial = r1.timedOut ? [`pass 1 timed out after ${timeout} s`] : [];
 	const frames = parseFrames(read(join(dir, 'frames.csv')));
 	const worst = (meta.worst ?? [])
 		.map((f, i) => ({ frame: f, file: join(dir, `worst_${i}.csv`) }))
@@ -523,6 +524,7 @@ function analyze(o) {
 		return exitWith('FAILED', 1, `${r1.timedOut ? `timed out after ${timeout} s` : 'the export did not run'} - read ${join(dir, 'pass1.log')}`);
 	}
 
+	const partial = r1.timedOut ? [`pass 1 timed out after ${timeout} s`] : [];
 	const frames = parseFrames(read(join(dir, 'frames.csv')));
 	const worst = worstFrames(frames.game, worstK);
 	writeFileSync(join(dir, 'ue-trace.json'), JSON.stringify({ trace, threads, window, worst }, null, 1), 'utf8');
@@ -532,10 +534,14 @@ function analyze(o) {
 		const r2 = runInsights(ins.exe, trace, rsp2, join(dir, 'pass2.log'), timeout);
 		console.log(`pass 2  : ${r2.secs.toFixed(1)} s (${worst.length} worst frames)${r2.timedOut ? ' (TIMED OUT)' : ''}`);
 		for (const e of r2.errors) console.log(`  insights: ${e.trim()}`);
+		if (r2.spawnError || !r2.ran) partial.push('pass 2 (the worst frames) did not run');
+		else if (r2.timedOut) partial.push(`pass 2 (the worst frames) timed out after ${timeout} s`);
 	}
 	console.log('');
 	const d = digestDir(dir, { threads, top, window, trace: basename(trace) });
 	for (const l of d.lines) console.log(l);
+	// A digest of half an export reads like a quiet trace: say that it is half.
+	if (partial.length) return exitWith('FAILED', 1, `the export is incomplete (${partial.join('; ')}) - the digest above is partial; raise --timeout or narrow the window`);
 	exitWith(d.outcome, d.outcome === 'OK' ? 0 : 1, d.summary);
 }
 

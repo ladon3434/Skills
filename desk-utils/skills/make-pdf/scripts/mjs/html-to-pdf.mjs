@@ -79,9 +79,20 @@ function main(argv) {
 		args.push(`--print-to-pdf=${out}`);
 	}
 	args.push(pathToFileURL(input).href);
-	spawnSync(browser, args, { stdio: 'ignore', windowsHide: true, timeout: 120000 });
+	// A file left by an earlier run must not pass for this run's output: note its time, and demand a newer one.
+	const before = existsSync(out) ? statSync(out).mtimeMs : null;
+	const started = Date.now();
+	const run = spawnSync(browser, args, { stdio: 'ignore', windowsHide: true, timeout: 120000 });
+	if (run.error) {
+		console.error(`html-to-pdf: ${browser} ${run.error.code === 'ETIMEDOUT' ? 'did not finish in 120 s' : `could not start (${run.error.message})`}`);
+		return 1;
+	}
 	if (!existsSync(out) || statSync(out).size === 0) {
-		console.error(`html-to-pdf: ${browser} produced no ${out}`);
+		console.error(`html-to-pdf: ${browser} produced no ${out}${run.status ? ` (exit ${run.status})` : ''}`);
+		return 1;
+	}
+	if (before !== null && statSync(out).mtimeMs === before && before < started) {
+		console.error(`html-to-pdf: ${out} was NOT rewritten - it is the file of an earlier run (open in a viewer that locks it?)${run.status ? `; ${browser} exited ${run.status}` : ''}`);
 		return 1;
 	}
 	console.log(`${out} (${statSync(out).size} bytes) via ${browser}`);

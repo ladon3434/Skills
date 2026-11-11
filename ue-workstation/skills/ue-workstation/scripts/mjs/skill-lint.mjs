@@ -83,10 +83,10 @@ function* walkFiles(dir, skip = SkipDirs) {
 }
 
 /** Folders of the installed Claude Code plugins; a plugin of a marketplace added from a local folder is read there. */
-export function pluginRoots(home = homedir()) {
+export function pluginRoots(configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')) {
 	const read = (f) => {
 		try {
-			return JSON.parse(readFileSync(join(home, '.claude', 'plugins', f), 'utf8'));
+			return JSON.parse(readFileSync(join(configDir, 'plugins', f), 'utf8'));
 		} catch {
 			return {};
 		}
@@ -105,13 +105,13 @@ export function pluginRoots(home = homedir()) {
 }
 
 function context(root, cfg) {
-	const userSkills = join(homedir(), '.claude', 'skills');
+	const userSkills = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'skills');
 	const plugins = pluginRoots();
 	const files = new Set([...walkFiles(root), ...walkFiles(userSkills), ...plugins.flatMap((p) => [...walkFiles(p)])]);
 	const local = new Set(dirsOf(join(root, cfg.skillsDir)));
 	const all = new Set([...local, ...dirsOf(userSkills), ...plugins.flatMap((p) => dirsOf(join(p, 'skills')))]);
 	const mcp = new Set();
-	for (const f of [join(root, '.mcp.json'), join(homedir(), '.claude.json')]) {
+	for (const f of [join(root, '.mcp.json'), join(homedir(), '.claude.json'), ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, '.claude.json')] : [])]) {
 		try {
 			const j = JSON.parse(readFileSync(f, 'utf8'));
 			Object.keys(j.mcpServers ?? {}).forEach((s) => mcp.add(s));

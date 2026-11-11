@@ -37,7 +37,7 @@ Run these via the PowerShell tool.
   ```powershell
   Set-Clipboard -Value 'the text to put on the clipboard'
   ```
-  For multi-line, pass a here-string. For long/awkward content, write it to a temp file first and `Set-Clipboard -Value (Get-Content -Raw file)`.
+  For multi-line, pass a here-string. For long/awkward content, write it to a temp file first and `Set-Clipboard -Value (Get-Content -Raw -Encoding UTF8 file)` — without `-Encoding UTF8` Windows PowerShell 5.1 reads a BOM-less UTF-8 file as ANSI and non-ASCII text (Cyrillic) lands on the clipboard as mojibake.
 
 ## Notes
 - Windows-only; needs an interactive session (the clipboard is per-session).

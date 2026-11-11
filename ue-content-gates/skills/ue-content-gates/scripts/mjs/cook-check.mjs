@@ -309,6 +309,11 @@ function main(args) {
 	for (const [cls, n] of Object.entries(byClass).sort((a, b) => b[1] - a[1])) console.log(`  missing ${n} x ${cls}`);
 	for (const u of unresolved.slice(0, 10)) console.log(`  UNRESOLVED ${u.package} <- ${u.from || '(root)'}`);
 	console.log(`report: ${mdOut}`);
+	// Nothing expected is nothing checked: a mistyped --dir or an empty folder must not read as a good cook.
+	if (!expected.length) {
+		console.log('no package was expected - the roots and folders given resolve to nothing on disk (a mistyped --dir?)');
+		return verdict('UNKNOWN', 2);
+	}
 	const clean = !missing.length && !unresolved.length && rootRows.every((r) => r.cooked) && slotRows.every((s) => s.cooked);
 	verdict(clean ? 'OK' : 'FAILED', clean ? 0 : 1);
 }

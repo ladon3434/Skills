@@ -55,8 +55,9 @@ Parse a finished log without running anything: `node <skill>/scripts/mjs/ue-test
 
 - `token` — a test path prefix, case-insensitive, like the filter.
 - A quarantined test still runs; its failure is printed but does not change the verdict.
-- An entry without `reason` and `since` gets a warning: a permanent quarantine without a reason is
-  a disabled test. Fixed it — remove the entry.
+- An entry without `reason` and `since` is ignored with a warning (its test gates as usual): a
+  permanent quarantine without a reason is a disabled test. So is a token without a dot — it would
+  exempt a whole suite. Fixed it — remove the entry.
 - Quarantine is for flaky tests, not crashes: a test that crashes the editor aborts the whole run.
 
 ## How to read failures

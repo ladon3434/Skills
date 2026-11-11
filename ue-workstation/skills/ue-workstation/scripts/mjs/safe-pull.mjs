@@ -5,7 +5,8 @@
 // A plain `git pull` while the project's editor is open dies halfway on files the editor holds (.uasset/.umap,
 // module DLLs) and leaves the tree between two states — the no-tree-git-editor-open hook refuses it outright.
 // This script fetches first and decides by WHAT origin changed:
-//   - editor open and origin changed a package/DLL -> refused, the files are named: close the editor, run again
+//   - editor open and origin changed a package/DLL (with --rebase: or a local commit to replay did) -> refused, the
+//     files are named: close the editor, run again
 //   - editor open and origin changed only source/config -> pulled, with a warning (the editor keeps its loaded state;
 //     rebuild/restart when C++ changed)
 //   - an uncommitted local edit on a file origin changed -> refused (commit it first; never stashed behind your back)
@@ -26,7 +27,7 @@ function makeGit(env) {
 	const clean = { ...env };
 	for (const k of ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE', 'GIT_PREFIX']) delete clean[k];
 	return (cwd, ...args) => {
-		const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8', windowsHide: true, env: clean });
+		const r = spawnSync('git', ['-c', 'core.quotepath=off', '-C', cwd, ...args], { encoding: 'utf8', windowsHide: true, env: clean });
 		return { ok: r.status === 0, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 	};
 }
@@ -59,9 +60,11 @@ export function safePull(repo, opts = {}, env = process.env) {
 	const editor = probe.precise ? describe(probe) : '';
 	if (!probe.precise) log.push('note: the process query failed - cannot tell whether an editor is open; pulling as if none were');
 	if (editor) {
-		const held = incoming.filter((f) => EditorHeld.test(f));
+		// A rebase replays the local commits too: the files they touch are rewritten in the working tree as well.
+		const replayed = opts.rebase ? lines(git(root, 'diff', '--name-only', '@{u}...HEAD').out) : [];
+		const held = [...new Set([...incoming, ...replayed])].filter((f) => EditorHeld.test(f));
 		if (held.length) {
-			return { code: 1, log: [`REFUSED: an editor of this project is open (${editor}) and ${up.out} changed ${held.length} file(s) it may hold:`,
+			return { code: 1, log: [`REFUSED: an editor of this project is open (${editor}) and the pull would rewrite ${held.length} file(s) it may hold:`,
 				...held.slice(0, 20).map((f) => `  ${f}`), ...(held.length > 20 ? [`  ... and ${held.length - 20} more`] : []),
 				'Close the editor (a GUI editor belongs to a person: ask them), then run safe-pull again.'] };
 		}
@@ -126,6 +129,17 @@ function selftest() {
 		const r3 = safePull(mine, {}, noEditor);
 		eq(r3.code, 0, 'no editor: everything is pulled');
 		eq(git(mine, 'rev-list', '--count', 'HEAD..@{u}').out, '0', 'and the branch is at origin');
+		// a package with a non-ASCII name (git quotes such names by default) is still seen
+		writeFileSync(join(theirs, 'Герой.uasset'), 'bin');
+		git(theirs, 'add', '-A'); git(theirs, ...id, 'commit', '-q', '-m', 'pkg2'); git(theirs, 'push', '-q');
+		eq(safePull(mine, {}, editorOpen).code, 1, 'a package with a non-ASCII name is refused with the editor open');
+		eq(safePull(mine, {}, noEditor).code, 0, 'and pulled with no editor');
+		// --rebase: a local commit that holds a package would be replayed over the editor
+		writeFileSync(join(mine, 'Mine.uasset'), 'bin');
+		git(mine, 'add', 'Mine.uasset'); git(mine, ...id, 'commit', '-q', '-m', 'local pkg');
+		writeFileSync(join(theirs, 'A.cpp'), 'a4\n');
+		git(theirs, ...id, 'commit', '-q', '-am', 'a4'); git(theirs, 'push', '-q');
+		eq(safePull(mine, { rebase: true }, editorOpen).code, 1, '--rebase over a local package commit is refused with the editor open');
 	} finally { rmSync(d, { recursive: true, force: true }); }
 	if (fails.length) { console.log(`safe-pull self-test FAILED:\n  ${fails.join('\n  ')}`); process.exit(1); }
 	console.log(`safe-pull self-test: ok (${n} checks)`);

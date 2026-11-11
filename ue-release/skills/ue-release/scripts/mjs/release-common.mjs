@@ -54,7 +54,13 @@ export function editorCmd(project) {
 export function readIni(path) {
 	const out = {};
 	let text;
-	try { text = readFileSync(path, 'utf8'); } catch { return null; }
+	// The engine saves an .ini as UTF-16 with a BOM as soon as it holds a non-ANSI character (a Cyrillic path).
+	try {
+		const buf = readFileSync(path);
+		if (buf[0] === 0xff && buf[1] === 0xfe) text = buf.subarray(2).toString('utf16le');
+		else if (buf[0] === 0xfe && buf[1] === 0xff) text = Buffer.from(buf.subarray(2)).swap16().toString('utf16le');
+		else text = buf.toString('utf8').replace(/^﻿/, '');
+	} catch { return null; }
 	let sec = null;
 	for (const raw of text.split(/\r?\n/)) {
 		const line = raw.trim();

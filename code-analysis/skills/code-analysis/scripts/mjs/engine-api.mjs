@@ -45,7 +45,11 @@ import { Corpora, corpusRoots, indexState, inModule, inScope, KindLabel, queryIn
 
 const SKILL = dirname(dirname(dirname(fileURLToPath(import.meta.url)))); // <skill>/scripts/mjs -> <skill>
 const SKILL_CACHE = join(SKILL, 'references', 'engine-api');
-const CACHE_DIRS = [SKILL_CACHE, join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), '.claude', 'engine-api')];
+const PROJECT_CACHE = join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), '.claude', 'engine-api');
+const CACHE_DIRS = [SKILL_CACHE, PROJECT_CACHE];
+// Where a newly grounded signature is kept. An installed plugin lives in a versioned cache folder that the next
+// update replaces, so there the project's own cache is the place; in a clone of the marketplace - the skill's.
+const KEEP_DIR = /[/]plugins[/]cache[/]/i.test(SKILL_CACHE.split(String.fromCharCode(92)).join('/')) ? PROJECT_CACHE : SKILL_CACHE;
 
 const DEFAULT_LINES = 20;
 const MAX_LINES = 80;
@@ -84,7 +88,7 @@ if (words.length === 0 || words[0] === '--help') {
 Lookup order: the curated cache, then the ctags index (engine-index.cmd builds it — that is
 what makes Engine/Plugins visible at all), then ripgrep over Engine/Source + Engine/Plugins.
 
-Grounded a signature the hard way? Write it into that cache directory in the same pass — the next
+Grounded a signature the hard way? Write it into ${KEEP_DIR} in the same pass — the next
 session then pays nothing for it. Reading a file BODY is still a subagent's job (engine-reader).`);
 	process.exit(0);
 }
@@ -107,15 +111,25 @@ function searchCache(term) {
 		for (const raw of parts) {
 			const nl = raw.indexOf('\n');
 			const title = (nl === -1 ? raw : raw.slice(0, nl)).trim();
-			if (title.toLowerCase().includes(term.toLowerCase())) {
-				hits.push({ file: join(dir, file), body: `## ${raw}`.trimEnd() });
-			}
+			if (titleNames(title, term)) hits.push({ file: join(dir, file), body: `## ${raw}`.trimEnd() });
 		}
 	}
 	return hits;
 }
 
-const cached = searchCache(query.includes('::') ? member : query);
+/**
+ * Does a cache heading name the queried symbol itself? `Owner::Member` must stand in the heading as written;
+ * a bare name must be a whole symbol of the heading or its last `::` segment. A substring is not a match:
+ * `UPackage` is not `UPackageTools::UnloadPackages`, and `UFoo::Cancel` is not `UTransBuffer::Cancel`.
+ */
+function titleNames(title, term) {
+	const want = term.toLowerCase();
+	const symbols = (title.match(/[A-Za-z_~][\w~]*(?:::[A-Za-z_~][\w~]*)*/g) ?? []).map((s) => s.toLowerCase());
+	if (want.includes('::')) return symbols.some((s) => s === want || s.endsWith(`::${want}`));
+	return symbols.some((s) => s === want || s.split('::').pop() === want);
+}
+
+const cached = searchCache(query);
 if (cached.length > 0) {
 	console.log(`engine-api: ${cached.length} cached entry(ies) for "${query}" — already grounded, no engine search.\n`);
 	cached.forEach((h, i) => {
@@ -415,7 +429,7 @@ function report(hits, foundBy, where, corpus = null) {
 	if (suppressed > 0) {
 		console.log(`(${suppressed} more hit(s) not shown — narrow with --module <Name>, or raise --lines N.)`);
 	}
-	console.log(`Worth keeping? Add it to ${join(SKILL_CACHE, '<domain>.md')}`);
+	console.log(`Worth keeping? Add it to ${join(KEEP_DIR, '<domain>.md')}`);
 	console.log('as a `## <Symbol>` section with the signature, the file:line and the date.');
 }
 

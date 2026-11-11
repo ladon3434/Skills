@@ -116,20 +116,23 @@ def _store_save(data):
 
 
 def get_var(name):
-    """The process environment first, then the registry: a window opened before connect pings too, no restart."""
-    own = os.environ.get(name, "").strip()
-    if own:
-        return own
+    """
+    The saved value (the registry on Windows, the test store) is the truth; the process environment only stands in
+    where nothing is saved on this platform. A window keeps the environment it was opened with: read first, it made
+    an open window ping after `disconnect` and ping the OLD topic after `connect --topic NEW`.
+    """
     if _store_path():
         return str(_store_load().get(name, "")).strip()
     if sys.platform != "win32":
-        return ""
+        return os.environ.get(name, "").strip()
     import winreg
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:
             return str(winreg.QueryValueEx(k, name)[0]).strip()
+    except FileNotFoundError:
+        return ""  # not saved: disconnected, whatever this window's environment still holds
     except OSError:
-        return ""
+        return os.environ.get(name, "").strip()  # the registry cannot be read: the environment is all there is
 
 
 def _broadcast_env_change():

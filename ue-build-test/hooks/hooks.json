@@ -1,5 +1,5 @@
 {
-  "description": "ue-build-test: a session cannot finish with C++ it edited but never built (off with UE_BT_STOP_CHECK=0)",
+  "description": "ue-build-test: a session that edited C++ with Edit/Write and never built it is reminded once before it finishes (off with UE_BT_STOP_CHECK=0)",
   "hooks": {
     "PostToolUse": [
       {

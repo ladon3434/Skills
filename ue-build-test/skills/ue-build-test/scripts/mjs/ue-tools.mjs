@@ -184,9 +184,18 @@ export function binariesStale(tools) {
 	return { stale: newestSource > 0 && newestSource > newestBinary, newestSource, newestBinary };
 }
 
-/** `--name value` / `--flag` parser shared by the entry points. Unknown flags land in `rest`. */
-export function parseArgs(argv, spec) {
+/**
+ * `--name value` / `--flag` parser shared by the entry points. An unknown `--flag` is a usage error (exit 2): a
+ * mistyped `--dryrun` must not run the real thing. Single-dash switches (`-DisableUnity`: the engine's spelling) and
+ * everything after `--` land in `rest` for the entry points that pass them on; with `strict` they and positional
+ * words are usage errors too.
+ */
+export function parseArgs(argv, spec, { strict = false } = {}) {
 	const out = { _: [], rest: [] };
+	const usage = (what) => {
+		console.error(`ERROR: ${what}. Known options: ${Object.keys(spec).map((k) => `--${k}`).join(', ')}.`);
+		process.exit(2);
+	};
 	for (const [k, v] of Object.entries(spec)) out[k] = v.default;
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
@@ -199,9 +208,11 @@ export function parseArgs(argv, spec) {
 		if (def) {
 			if (def.type === 'bool') out[key] = true;
 			else out[key] = argv[++i];
-		} else if (a.startsWith('-')) out.rest.push(a);
+		} else if (key !== null) usage(`unknown option ${a}`);
+		else if (a.startsWith('-')) out.rest.push(a);
 		else out._.push(a);
 	}
+	if (strict && (out.rest.length || out._.length)) usage(`unexpected argument ${[...out.rest, ...out._][0]}`);
 	return out;
 }
 

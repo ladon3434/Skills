@@ -59,7 +59,7 @@ const sections = perDoc.flatMap((list) => {
 const docsLabel = DOCS.join(' + ');
 const projectHint = existsSync(PROJECT_DOC)
     ? PROJECT_DOC
-    : `${PROJECT_DOC} (create it), or ${SKILL_DOC} when the trap is engine-wide`;
+    : `${PROJECT_DOC} (create it)${/[/]plugins[/]cache[/]/i.test(SKILL_DOC.split(String.fromCharCode(92)).join('/')) ? '' : `, or ${SKILL_DOC} when the trap is engine-wide`}`;
 
 const rawArgv = process.argv.slice(2);
 const brief = rawArgv.includes('--brief');

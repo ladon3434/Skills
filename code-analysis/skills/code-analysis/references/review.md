@@ -110,8 +110,8 @@ branch, deleting a system), a branch or module before release, or the owner's wo
    agent) is always one of them; the subject (internal / external / system), the owner's word and what the
    machine has decide whether `agy` and `codex` join it. Our own code is an internal subject: the external
    voices only on the owner's word.
-2. **Brief** — `brief.md` in a folder of its own outside the repository (the voices may read that folder and
-   the subject, nothing else). It carries: the subject (the range for `git diff`, or the files), the project
+2. **Brief** — `brief.md` in a folder of its own outside the repository (the voices are pointed at that folder and
+   the subject; `agy` can read nothing else, codex is only kept from writing). It carries: the subject (the range for `git diff`, or the files), the project
    root, the engine root (`ue-engine.mjs`), the absolute path of this file with the checklist sections the
    change calls for (plus `review-replication.md` for networking), the claim to judge if there is one, and
    the output demand — findings as `severity 0-3 — file:line — what — why → how`, and on the claim one verdict

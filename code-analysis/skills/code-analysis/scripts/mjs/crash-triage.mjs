@@ -635,6 +635,31 @@ export function symbolDirs({ xml, project, unrealHome, extra = [], need = null }
 	return dirs;
 }
 
+/** PURE: the image paths in cdb's `lmf` listing (`start end name path`), system images left out. */
+export function dumpModules(text) {
+	const out = [];
+	for (const l of String(text ?? '').split(/\r?\n/)) {
+		const m = l.match(/^[0-9a-f`]{8,}\s+[0-9a-f`]{8,}\s+\S+\s+(?:\S.*?\s+)?([A-Za-z]:\\.+\.(?:dll|exe))\s*$/i);
+		if (m && !/^[a-z]:\\windows\\/i.test(m[1])) out.push(m[1]);
+	}
+	return out;
+}
+
+/**
+ * PURE: the leading folders that fit the Windows command line (32767 characters). The list goes in twice (-y and
+ * -i), so each copy gets `budget` characters; the order of symbolDirs is the order of worth (--symbols first).
+ */
+export function fitCommandLine(dirs, budget = 12000) {
+	const kept = [];
+	let used = 0;
+	for (const d of dirs) {
+		if (used + d.length + 1 > budget) break;
+		kept.push(d);
+		used += d.length + 1;
+	}
+	return kept;
+}
+
 /** PURE: the cdb argument list and a printable command line. */
 export function cdbCommand({ cdb, dump, dirs, msSymbols = false, cache = null, ntSymbolPath = '' }) {
 	const sym = [...dirs];
@@ -716,8 +741,22 @@ export function analyze(input, opts = {}) {
 						return null;
 					}
 				})();
-				const need = new Set(frames.map((f) => moduleKey(f.module)).filter(Boolean));
-				const dirs = symbolDirs({ xml, project, unrealHome: eng, extra: opts.symbols ?? [], need });
+				let need = new Set(frames.map((f) => moduleKey(f.module)).filter(Boolean));
+				let modules = xml;
+				if (!xml?.modules?.length) {
+					// A bare .dmp names no modules. Every Binaries/Win64 of the engine's plugins is hundreds of folders - far
+					// past the Windows command line. Ask the dump itself first: the module paths it recorded and the modules
+					// on the crashing stack, then pass only their folders.
+					const probe = (opts.runCdb ?? runCdb)(found.exe, ['-z', input.dumpPath, '-c', `.ecxr;kn ${CdbFrames};lmf;q`], opts.timeout ?? 300);
+					const listed = dumpModules(probe.out);
+					if (listed.length) {
+						modules = { modules: listed };
+						need = new Set(parseCdbOutput(probe.out).frames.map((f) => moduleKey(f.module)).filter((k) => k && k !== '?'));
+					}
+				}
+				const all = symbolDirs({ xml: modules, project, unrealHome: eng, extra: opts.symbols ?? [], need });
+				const dirs = fitCommandLine(all);
+				if (dirs.length < all.length) rep.notes.push(`${all.length - dirs.length} of ${all.length} symbol folders dropped to fit the Windows command line - name the ones that matter with --symbols <dir>`);
 				const cache = join(process.env.LOCALAPPDATA || tmpdir(), 'SymbolCache');
 				const cmd = cdbCommand({ cdb: found.exe, dump: input.dumpPath, dirs, msSymbols: opts.msSymbols, cache, ntSymbolPath: process.env._NT_SYMBOL_PATH ?? '' });
 				rep.cdb = { exe: found.exe, command: cmd.printable };
@@ -1137,6 +1176,20 @@ function selftest() {
 		check('analyze: printable command kept', /-c "\.ecxr;kn 50;q"$/.test(rep4.cdb.command), true);
 		const rep5 = analyze(resolveInput(oldDir), { cdbPath: join(oldDir, 'no-such-cdb.exe'), symbolicate: true });
 		check('analyze: --symbolicate without cdb is a setup error', [rep5.cdb.error, rep5.exitCode], ['missing', 2]);
+		// A bare dump: the module list comes from the dump itself, and the command stays inside the Windows limit.
+		const bare = join(tmp, 'bare');
+		mkdirSync(bare);
+		writeFileSync(join(bare, 'Lone.dmp'), 'not a real dump');
+		const calls = [];
+		const probeCdb = (exe, args) => {
+			calls.push(args);
+			return { ok: true, out: `00007ff6\`10000000 00007ff6\`10100000   UnrealEditor_Demo   C:\\Work\\Demo\\Binaries\\Win64\\UnrealEditor-Demo.dll\n${FixtureCdb}`, status: 0 };
+		};
+		const rep6 = analyze(resolveInput(join(bare, 'Lone.dmp')), { cdbPath: join(oldDir, XmlName), runCdb: probeCdb });
+		check('analyze: a bare dump is asked for its modules first', [calls.length, /lmf/.test(calls[0]?.at(-1) ?? ''), rep6.cdb.command.length < 32000], [2, true, true]);
+		check('dumpModules: image paths, system images left out', dumpModules('00007ff6`10000000 00007ff6`10100000   Demo   C:\\P\\Binaries\\Win64\\Demo.dll\n00007ffb`00000000 00007ffb`00200000   ntdll   C:\\WINDOWS\\SYSTEM32\\ntdll.dll'), ['C:\\P\\Binaries\\Win64\\Demo.dll']);
+		const many = Array.from({ length: 900 }, (_, i) => `C:\\Engine\\Plugins\\P${i}\\Binaries\\Win64`);
+		check('fitCommandLine: the folders are cut to the budget, the first kept', [fitCommandLine(many).join(';').length <= 12000, fitCommandLine(many)[0]], [true, many[0]]);
 	} finally {
 		rmSync(tmp, { recursive: true, force: true });
 	}

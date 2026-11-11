@@ -68,7 +68,7 @@ Skills still trigger from their descriptions, in English or Russian.
 | [`code-analysis`](code-analysis/README.md) | analysis, diff review with a UE checklist (GC, lambdas, timers, perf), debugging to the root cause and crash triage; engine signatures (`engine-api`), known hazards (`hazards`), log scan (`log-scan`), review voices Fable + agy / codex (`review-voices`), agents code-scout / engine-reader / log-triage / reviewer / refuter | |
 | [`ue-cpp-authoring`](ue-cpp-authoring/README.md) | UE C++ conventions, the `Source/**` rule (via hook), assertions/threading/UHT, subsystems and data assets, validators, Blueprint → C++, widgets, logging, refactoring with CoreRedirects, editor-tool plugin contract | |
 | [`ue-build-test`](ue-build-test/README.md) | builds, full rebuild, Game/Shipping gate, headless automation tests with quarantine and a RESULT line, test authoring, soft stop of its own editor | `ue-workstation` |
-| [`unreal-editor`](unreal-editor/README.md) | live editor: Epic's `unreal-mcp` toolsets and Python through Epic's Remote Execution, port and log from the project, Epic toolset schema snapshots, Live Coding, Agent Skills, content pitfalls, Python inspection of PIE, lazy MCP bridge | `ue-workstation` |
+| [`unreal-editor`](unreal-editor/README.md) | live editor: Epic's `unreal-mcp` toolsets and Python through Epic's Remote Execution, port and log from the project, Epic toolset schema snapshots, Live Coding, Agent Skills, content pitfalls, Python inspection of PIE, lazy MCP bridge | `ue-workstation`, `ue-build-test` |
 | [`ue-content-gates`](ue-content-gates/README.md) | offline checks without the editor: `.uasset` headers, which content uses a C++ symbol (`find-asset-refs`), forbidden references, `/Game` paths in C++, cook verification | `ue-workstation` |
 | [`ue-gas`](ue-gas/README.md) | Gameplay Ability System: cheatsheets for features, review checklist, mechanics reference (working digest + tranek's GASDocumentation, MIT) with 5.5+ corrections | |
 | [`ue-systems`](ue-systems/README.md) | Enhanced Input, StateTree and PCG in 5.8, one skill each: setup, C++ idioms, review checklist, traps checked against the engine source | |
@@ -113,8 +113,11 @@ get it after a commit is pushed, through `claude plugin marketplace update ue-sk
 `claude plugin update <plugin>@ue-skills`. Validate manifests with `claude plugin validate <folder>`.
 
 Before a commit: `node scripts/repo-check.mjs [<another marketplace dir>]` — shared modules (`ue-engine.mjs`, `ue-proc.mjs`,
-`ue-owner.mjs`) are one file copied into every plugin that needs them, the master in `ue-workstation`; the check
-fails on a copy that differs, an unknown dependency, a `version` field, a skill description over 1024 characters.
+`ue-owner.mjs`, `ue-pyremote.mjs`) are one file copied into every plugin that needs them, the master in
+`ue-workstation`; the check fails on a copy that differs, an unknown dependency, a `version` field, a skill
+description over 1024 characters, a marketplace description that differs from the plugin's, a hook, `.cmd` wrapper
+or `bin/` shim that points at a missing file. Then `node scripts/run-tests.mjs` — every offline test of the plugins
+in one run (no editor, no build, no network; about two minutes).
 
 ## License
 

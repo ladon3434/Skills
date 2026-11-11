@@ -126,6 +126,13 @@ export function codeLines(text) {
 	});
 }
 
+/**
+ * The asset path inside a reference in export-text form — what Ctrl+C in the Content Browser gives:
+ * `/Script/Engine.StaticMesh'/Game/Props/SM_Gun.SM_Gun'` or the older `StaticMesh'/Game/Props/SM_Gun.SM_Gun'`.
+ * Any other string is returned as it is.
+ */
+export const assetOf = (s) => s.match(/^[^']*'(\/[^']*)'?\s*$/)?.[1] ?? s;
+
 const literals = (code) => [...code.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1] ?? '');
 
 /** Every asset path this file's code names. `only` narrows the verdict to those line numbers. Pure. */
@@ -138,7 +145,7 @@ export function scanText(file, text, mounts = ['/Game/'], only = null) {
 		if (only && !only.has(line)) return;
 		if (AllowMarker.test(raw[index] ?? '') || (index > 0 && AllowMarker.test(raw[index - 1] ?? ''))) return;
 		if (/^\s*#\s*include\b/.test(code)) return;
-		const strings = literals(code);
+		const strings = literals(code).map(assetOf);
 		const shown = (raw[index] ?? '').trim();
 		if (/\bConstructorHelpers::/.test(code) && !(strings.length && strings.every((s) => EngineOwned.test(s)))) {
 			found.push({ file, line, text: shown, why: 'ConstructorHelpers aimed at a project asset' });
@@ -169,7 +176,7 @@ function stagedAddedLines(full) {
 }
 
 function stagedFiles(root) {
-	const out = execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8', windowsHide: true });
+	const out = execFileSync('git', ['diff', '--cached', '--name-only', '--relative', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8', windowsHide: true });
 	return out.split(/\r?\n/).filter(Boolean);
 }
 
@@ -197,6 +204,11 @@ function selftest() {
 	eq(lines('static ConstructorHelpers::FObjectFinder<UStaticMesh> F(TEXT("/Game/Props/SM_Gun"));\n'), [1], 'a finder on a project asset is refused');
 	eq(lines('static ConstructorHelpers::FObjectFinder<UStaticMesh> F(TEXT("/Engine/BasicShapes/Cube.Cube"));\n'), [], 'a finder on an engine shape passes');
 	eq(lines('static ConstructorHelpers::FClassFinder<APawn> F(*PawnPath);\n'), [1], 'a finder fed from a variable is refused');
+	eq(lines(`auto M = LoadObject<UStaticMesh>(nullptr, TEXT("/Script/Engine.StaticMesh'/Game/Props/SM_Gun.SM_Gun'"));\n`), [1], 'the Copy Reference form (/Script/Class\'/Game/...\') is refused');
+	eq(lines(`static ConstructorHelpers::FObjectFinder<UStaticMesh> F(TEXT("/Script/Engine.StaticMesh'/Game/Props/SM_Gun.SM_Gun'"));\n`), [1], 'and inside a finder');
+	eq(lines(`auto M = LoadObject<UStaticMesh>(nullptr, TEXT("StaticMesh'/Game/Props/SM_Gun.SM_Gun'"));\n`), [1], 'the older Class\'/Game/...\' form is refused');
+	eq(lines(`static ConstructorHelpers::FObjectFinder<UStaticMesh> F(TEXT("/Script/Engine.StaticMesh'/Engine/BasicShapes/Cube.Cube'"));\n`), [], 'the Copy Reference form of an engine asset passes');
+	eq(lines('auto C = FindObject<UClass>(nullptr, TEXT("/Script/Engine.Actor"));\n'), [], 'a /Script/ class path is not an asset');
 	eq(lines('#include "UObject/ConstructorHelpers.h"\n'), [], 'the include is not a use');
 	eq(lines('if(!Package.StartsWith(TEXT("/Game/")))\n'), [], 'the /Game/ root is a folder, not an asset');
 	eq(lines('Excluded.Add(TEXT("/Game/Developers/"));\n'), [], 'any folder ending in / passes');

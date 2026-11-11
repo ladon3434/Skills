@@ -22,7 +22,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { findProjectUproject, resolveEngine } from './ue-engine.mjs';
 import { preflight, projectInfo } from './ue-project.mjs';
-import { canLaunch, claim, snapshot, whoAmI } from './ue-owner.mjs';
+import { canLaunch, claim, portOwner, snapshot, whoAmI } from './ue-owner.mjs';
 import { LaunchSwitch } from './ue-pyremote.mjs';
 
 const argv = process.argv.slice(2);
@@ -82,6 +82,10 @@ if (panel) verdict('REFUSED', 'the restore panel is pending: the editor would st
 if (!rule.ok && rule.reuse) verdict('REUSED', `this session's editor pid ${rule.reuse} already runs - use it (scripts/editor-ready.sh waits for its server)`, 0);
 if (!rule.ok) verdict('REFUSED', rule.reason, 1);
 if (!existsSync(exe)) verdict('FAILED', `${exe} does not exist`, 1);
+// A port somebody already answers on cannot be bound by the editor started now: its MCP server would never come up,
+// and the answer on the port would be read as this editor's.
+const holder = info.serverKind !== 'none' ? portOwner(info.port) : null;
+if (holder) verdict('REFUSED', `port ${info.port} is already answered by pid ${holder} - an editor started now could not open its MCP server there. Give this project its own port (UE_MCP_PORT) or wait for that process to end.`, 1);
 
 const since = Date.now();
 // detached + ignored stdio: the editor outlives this script; on Windows a non-detached child would sit in Node's
@@ -119,6 +123,8 @@ let stillSince = Date.now();
 while (Date.now() - since < timeoutMs) {
 	try {
 		await fetch(info.url, { method: 'GET', signal: AbortSignal.timeout(3000) });
+		const answering = portOwner(info.port);
+		if (answering && answering !== pid) verdict('FAILED', `${info.url} answers, but from pid ${answering}, not from the editor started here (pid ${pid}) - this editor has no MCP server. Read ${info.log}.`, 1);
 		verdict('OK', `pid ${pid}, server answers at ${info.url} after ${Math.round((Date.now() - since) / 1000)}s`, 0);
 	} catch {
 		/* not up yet */

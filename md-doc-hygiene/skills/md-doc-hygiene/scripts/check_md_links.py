@@ -50,8 +50,32 @@ def wiki_index(root):
     return pages
 
 
+def attachment_index(root):
+    """Lower-case names of every non-.md file: Obsidian resolves [[pic.png]] / ![[doc.pdf]] by name or by path."""
+    files = set()
+    for d, dirs, names in os.walk(root):
+        dirs[:] = [x for x in dirs if not x.startswith('.')]
+        for f in names:
+            if f.endswith('.md'):
+                continue
+            files.add(f.lower())
+            files.add(os.path.relpath(os.path.join(d, f), root).lower().replace('\\', '/'))
+    return files
+
+
+def wiki_target_exists(page, pages, attachments):
+    """A wiki link names a page (with or without .md) or, with another extension, an attachment."""
+    key = page.lower().replace('\\', '/')
+    if key in pages:
+        return True
+    if key.endswith('.md') and key[:-3] in pages:
+        return True
+    return key in attachments
+
+
 def check(root):
     pages = wiki_index(root)
+    attachments = attachment_index(root)
     bad = 0
     print('Scanning: %s\n' % root)
     for path in sorted(md_files(root)):
@@ -98,7 +122,7 @@ def check(root):
                 page = inner.replace('\\|', '|').split('|')[0].split('#')[0].strip()
                 if not page:
                     continue                                   # [[#Heading]] in the same file
-                if page.lower().replace('\\', '/') not in pages:
+                if not wiki_target_exists(page, pages, attachments):
                     print('[WIKI] %s:%d  [[%s]] - no page "%s"' % (rel, no, inner, page))
                     bad += 1
 

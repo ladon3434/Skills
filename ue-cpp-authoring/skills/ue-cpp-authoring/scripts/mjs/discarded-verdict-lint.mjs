@@ -28,6 +28,14 @@
 // WHAT COUNTS AS DISCARDED: the call is the WHOLE statement, `Reader(a, b);`. `if(!Reader(...))`, `return
 // Reader(...)`, `const bool bOk = Reader(...)`, `ensure(Reader(...))`, `Out.Add(Reader(...))` all use it.
 //
+// NOT SEEN (a clean run is not a proof — the gate reads statements, it does not parse C++): a discarded call
+// inside a lambda body or any other parenthesised argument (`AsyncTask(..., [&]{ Reader(a, b); })`); a call
+// reached through a chain with `()` or `[]` (`FHelper::Get().Read(a, b);`, `GetHelper()->Read(...)`,
+// `Items[0].Read(...)`); a call with explicit template arguments (`Read<FVector>(a, b);`); the statement after
+// a `case X:` / `default:` label or in a `do` body; a reader declared `... const override;` or with a
+// `TArray<const T*>&` out-parameter (not taken into the inventory). `[[nodiscard]]` on the declaration closes
+// all of these at compile time.
+//
 // THE DELIBERATE DISCARD: `// verdict-ok: <why>` on the statement's line or the line above.
 // The compiler-enforced alternative for NEW readers is `[[nodiscard]]` on the declaration; this gate covers the
 // readers that already exist without touching their signatures.

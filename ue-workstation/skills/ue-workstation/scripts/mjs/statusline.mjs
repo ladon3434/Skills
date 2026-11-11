@@ -14,7 +14,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { editorsOfProject } from './ue-proc.mjs';
 import { findUproject } from './ue-engine.mjs';
 
-const Home = join(homedir(), '.claude');
+const Home = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
 const DirtyTtlMs = 60_000;
 const EditorTtlMs = 30_000;
 

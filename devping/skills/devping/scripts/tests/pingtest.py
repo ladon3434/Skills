@@ -141,8 +141,16 @@ try:
     check("show without an argument changes nothing", rc == 0 and store().get("NTFY_SHOW_MY_GAME_2") == "none", out)
     rc, _ = run("show", "everything")
     check("show: an unknown value is refused", rc != 0 and store().get("NTFY_SHOW_MY_GAME_2") == "none")
-    rc, _ = run("hook", stdin=json.dumps({"notification_type": "idle_prompt"}), env=dict(hook_env, NTFY_SHOW_MY_GAME_2="garbage"))
+    saved = store()
+    with open(ENV["DEVPING_STORE"], "w", encoding="utf-8") as fh:
+        json.dump(dict(saved, NTFY_SHOW_MY_GAME_2="garbage"), fh)
+    rc, _ = run("hook", stdin=json.dumps({"notification_type": "idle_prompt"}), env=hook_env)
     check("a hand-set unknown value falls back to the full title", GOT[-1]["title"] == "My Game-2 @ TESTBOX")
+    with open(ENV["DEVPING_STORE"], "w", encoding="utf-8") as fh:
+        json.dump(saved, fh)
+    # A window keeps the environment it was opened with: the saved value wins over it.
+    rc, _ = run("hook", stdin=json.dumps({"notification_type": "idle_prompt"}), env=dict(hook_env, NTFY_TOPIC_MY_GAME_2="ping-stale-topic-of-an-old-window"))
+    check("a stale topic in the window's environment loses to the saved one", GOT[-1].get("topic") != "ping-stale-topic-of-an-old-window", str(GOT[-1]))
     rc, out = run("status")
     check("status names the setting", "NTFY_SHOW_MY_GAME_2 = none" in out, out)
 
@@ -153,6 +161,8 @@ try:
     before = len(GOT)
     run("hook", stdin=json.dumps({"notification_type": "idle_prompt"}), env=hook_env)
     check("after disconnect the hook is silent", len(GOT) == before)
+    run("hook", stdin=json.dumps({"notification_type": "idle_prompt"}), env=dict(hook_env, NTFY_TOPIC_MY_GAME_2="ping-stale-topic-of-an-old-window"))
+    check("and stays silent in a window that still holds the old topic", len(GOT) == before)
 finally:
     srv.shutdown()
     shutil.rmtree(TMP, ignore_errors=True)

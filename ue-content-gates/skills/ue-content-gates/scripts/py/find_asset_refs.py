@@ -137,6 +137,10 @@ def main(argv):
         raise SystemExit("find-asset-refs: --rename-to takes exactly one symbol")
     roots = roots or default_roots()
     packages = list(uasset.walk_packages(*roots))
+    if not packages:
+        # Zero hits over zero packages is not "nobody uses it": the gate did not look anywhere.
+        print(f"find-asset-refs: no package under {', '.join(str(r) for r in roots)} - a wrong --in or an empty Content; nothing was checked", file=sys.stderr)
+        return 2
     report = []
     unreadable = []
     parsed = []

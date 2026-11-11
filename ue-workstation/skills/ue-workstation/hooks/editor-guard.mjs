@@ -1,6 +1,6 @@
 // editor-guard.mjs — the machine rule «an agent touches only what it started» as a Claude Code hook.
 //
-// PreToolUse  Bash|PowerShell     refuses before the command runs:
+// PreToolUse  Bash|PowerShell|Monitor  refuses before the command runs:
 //   - stopping Unreal editors by image name (taskkill /im, Stop-Process -Name, Get-Process UnrealEditor | ...):
 //     it hits every project's editor and every person's; stop by pid, through ue-stop-editor;
 //   - stopping an editor by pid that this session did not start (ue-owner canStop), or that is in the foreground
@@ -11,7 +11,9 @@
 // PreToolUse  mcp__<server>__*    refuses a call whose port is answered by another project's editor. (Python into an
 //                                 editor goes through ue-pyremote.mjs, which asks for the person's OK itself.)
 // PostToolUse Bash|PowerShell     an editor that appeared during this call, launched from this session, gets its
-//                                 ownership marker — whatever started it (a script, Start-Process, python).
+//                                 ownership marker: any editor when the command names the editor, a .uproject or
+//                                 a launcher script; otherwise only a headless editor of this session's project
+//                                 (a window that opens during an unrelated call is a person's).
 //
 // Commands are judged by their text, which a determined script can hide from; the skills' own scripts check the
 // same rules themselves (ue-owner.mjs), so the hook is the second line, not the only one.
@@ -31,19 +33,39 @@ import {
 } from '../scripts/mjs/ue-owner.mjs';
 
 const StateDir = join(tmpdir(), 'ue-editor-guard');
+
+/**
+ * PURE: a statement without the wrappers a command can stand behind — `cmd /c`, `powershell -Command`, `bash -c`,
+ * `timeout N`, `if (...) {`, `then`/`do`/`else`, an opening quote or brace — so the verb is at its start again.
+ */
+function unwrap(stmt) {
+	const Wrapper = /^(?:(?:\S*[\\/])?cmd(?:\.exe)?\s+\/{1,2}[ck]\s+|(?:\S*[\\/])?(?:powershell|pwsh)(?:\.exe)?\s+(?:-(?!c\b|command\b)\w+(?:\s+[^-\s]\S*)?\s+)*-c(?:ommand)?\s+|(?:\S*[\\/])?(?:bash|sh|zsh)(?:\.exe)?\s+-\w*c\s+|timeout\s+\S+\s+|if\s*\([^)]*\)\s*|(?:then|do|else)\s+|["'{(&]\s*)/i;
+	let s = stmt;
+	for (let n = 0; n < 8; n++) {
+		const next = s.replace(Wrapper, '');
+		if (next === s) break;
+		s = next;
+	}
+	return s;
+}
+
 /**
  * PURE: does the command stop editors selected by image name? A verb counts only at the start of a statement or
  * a pipeline stage, so file names and quoted prose that merely mention both words are not a kill.
  */
 export function killsByImage(text) {
-	const Ed = 'unrealeditor';
+	// The editor's image, exact or by a wildcard that takes it in (Unreal*, *Unreal*).
+	const Ed = '\\*?unreal(?:editor|[\\w-]*\\*)';
+	const Lister = '(?:get-process|gps|get-ciminstance|gcim|get-wmiobject|gwmi|pgrep|pidof|tasklist)';
 	if (new RegExp(`(?:get-process|gps)\\s[^;\\n]*${Ed}[\\s\\S]*?\\.\\s*(?:kill|closemainwindow)\\s*\\(`, 'i').test(text)) return true;
+	// Editors listed into a variable, then a kill fed from a variable: `$p = Get-Process UnrealEditor; Stop-Process -Id $p.Id`.
+	if (new RegExp(`\\b${Lister}\\b[^\\n]*${Ed}`, 'i').test(text) && /(?:\b(?:stop-process|spps|taskkill)\b|(?:^|[;&|\n(]\s*)kill\s)[^;\n|]*\$[\w({]/im.test(text)) return true;
 	for (const stmt of String(text).split(/[;\n]|&&|\|\|/)) {
-		const stages = stmt.split('|').map((s) => s.trim().replace(/^[&(\s]+/, '').replace(/^\$\w+\s*=\s*/, ''));
+		const stages = stmt.split('|').map((s) => unwrap(s.trim().replace(/^[&(\s]+/, '').replace(/^\$\w+\s*=\s*/, '')));
 		for (let i = 0; i < stages.length; i++) {
 			const s = stages[i];
 			if (new RegExp(`^taskkill\\b.*\\/im\\s+["']?${Ed}`, 'i').test(s)) return true;
-			if (new RegExp(`^(?:stop-process|spps|kill)\\b.*-name\\s+["']?${Ed}`, 'i').test(s)) return true;
+			if (new RegExp(`^(?:stop-process|spps|kill)\\b.*-(?:process)?name\\s+["']?${Ed}`, 'i').test(s)) return true;
 			if (new RegExp(`^(?:pkill|killall)\\b.*${Ed}`, 'i').test(s)) return true;
 			if (new RegExp(`^wmic\\b.*${Ed}.*\\b(?:delete|terminate)\\b`, 'i').test(s)) return true;
 			if (i > 0 && new RegExp(`^(?:get-process|gps|ps|get-ciminstance|gcim|get-wmiobject|gwmi)\\b.*${Ed}`, 'i').test(stages[0])
@@ -72,10 +94,13 @@ export function classify(command) {
 	for (const m of text.matchAll(/\b(?:stop-process|spps)\s+(\d+)/gi)) pids.add(Number(m[1]));
 	for (const m of text.matchAll(/(?:get-process|gps)\s+-id\s+(\d+)[^;\n]*?(?:closemainwindow|kill|stop-process|spps)/gi)) pids.add(Number(m[1]));
 	for (const m of text.matchAll(/getprocessbyid\(\s*(\d+)\s*\)[^;\n]*?(?:kill|closemainwindow)/gi)) pids.add(Number(m[1]));
-	for (const m of text.matchAll(/(?:^|[;&|\n(]\s*)kill\s+(?:-\d+\s+|-s\s+\w+\s+|-id\s+)?(\d+)/gim)) pids.add(Number(m[1]));
+	for (const m of text.matchAll(/(?:^|[;&|\n({"']\s*|\b(?:then|do|else)\s+)kill\s+(?:-s\s+\w+\s+|-\w+\s+)*((?:\d+[ \t]*)+)/gim)) for (const p of m[1].trim().split(/\s+/)) pids.add(Number(p));
+	for (const m of text.matchAll(/\bwmic\b[^;\n]*?processid\s*=\s*["']?(\d+)[^;\n]*?\b(?:delete|terminate)\b/gi)) pids.add(Number(m[1]));
+	for (const m of text.matchAll(/processid\s*=\s*["']?(\d+)[^;\n]*?(?:remove-ciminstance|terminate|\.delete\s*\()/gi)) pids.add(Number(m[1]));
 	out.killPids = [...pids];
 
-	if (!pids.size) out.killByImage = killsByImage(text);
+	// Always: a pid kill in the same line must not hide a kill by image.
+	out.killByImage = killsByImage(text);
 
 	const launchRe = /(?:^|[;&|\n(]\s*)(?:&\s*|start-process\s+(?:-filepath\s+)?|start\s+(?:""\s+)?|call\s+)?(?:"(?:[^"]*[\\/])?unrealeditor(?:-cmd)?(?:\.exe)?"|'(?:[^']*[\\/])?unrealeditor(?:-cmd)?(?:\.exe)?'|[^\s"';&|]*?unrealeditor(?:-cmd)?(?:\.exe)?)(?=\s|$)/i;
 	if (!out.killByImage && !out.killPids.length && launchRe.test(text)) out.launch = { uproject: uprojectOfCmd(text) };
@@ -88,7 +113,7 @@ export function classify(command) {
 	return out;
 }
 
-const Relevant = /unrealeditor|taskkill|stop-process|spps|\bkill\b|closemainwindow|build\.(?:bat|sh)|unrealbuildtool|runuat|compile[\w-]*\.(?:cmd|bat)/i;
+const Relevant = /unreal|taskkill|stop-process|spps|\bkill\b|closemainwindow|\bwmic\b|ciminstance|wmiobject|build\.(?:bat|sh)|unrealbuildtool|runuat|compile[\w-]*\.(?:cmd|bat)/i;
 
 function callFile(id) {
 	return join(StateDir, `call-${String(id ?? 'none').replace(/[^\w.-]/g, '_')}.json`);
@@ -155,9 +180,17 @@ function postBash(payload) {
 	if (!snap) return;
 	const me = whoAmI(snap);
 	if (!me) return;
+	// Which editors this call may have started. A command that names the editor, a .uproject or a launcher script
+	// may have started any; any other command (a python or node script that launches inside) only a headless editor
+	// of this session's own project — an editor with a window that appears during an unrelated call is a person's.
+	const command = String(payload.tool_input?.command ?? '');
+	const namesEditor = /unrealeditor|\.uproject|launch-editor|run-editor|ue-test|check-blueprints|validate-data/i.test(command);
+	const same = (a, b) => !!a && !!b && resolve(a).toLowerCase() === resolve(b).toLowerCase();
+	const own = findProjectRoot(payload.cwd ?? process.cwd());
 	const claimed = [];
 	for (const e of editors(snap, me)) {
 		if (e.state !== 'human' || !e.project || e.start == null || e.start < since - 2000) continue;
+		if (!namesEditor && (e.gui || !same(e.project, own))) continue;
 		const r = claim(snap, me, e.pid, { since });
 		if (r.ok) {
 			claimed.push(`${e.gui ? 'GUI' : 'headless'} editor pid ${e.pid}`);
@@ -225,7 +258,7 @@ function main() {
 		if (event === 'PreToolUse') preMcp(payload);
 		return;
 	}
-	if (tool !== 'Bash' && tool !== 'PowerShell') return;
+	if (tool !== 'Bash' && tool !== 'PowerShell' && tool !== 'Monitor') return;
 	if (event === 'PreToolUse') preBash(payload);
 	else if (event === 'PostToolUse') postBash(payload);
 }

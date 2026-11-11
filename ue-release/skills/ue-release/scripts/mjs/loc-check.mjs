@@ -73,6 +73,10 @@ for (const target of chosen) {
 	const dest = join(project.root, common.DestinationPath?.at(-1) ?? `Content/Localization/${target}`);
 	const archiveName = common.ArchiveName?.at(-1) ?? `${target}.archive`;
 	console.log(`=== target ${target}: native ${native}, cultures ${cultures.join(', ') || '(none)'} ===`);
+	if (!cultures.length) {
+		console.log(`[FAIL] ${rel(cfgPath)} names no culture (CommonSettings/CulturesToGenerate) - the file is missing, empty or unreadable; nothing was checked for this target`);
+		bad++;
+	}
 
 	if (!engine.error) {
 		const ours = engine.unrealHome.replace(/\\/g, '/').toLowerCase();

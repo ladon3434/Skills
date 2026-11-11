@@ -317,9 +317,13 @@ export async function preflight(info, { probe = true } = {}) {
 	let logAgeSec = null;
 	let logSize = null;
 	if (info.logExists) {
-		const st = statSync(info.log);
-		logAgeSec = Math.round((Date.now() - st.mtimeMs) / 1000);
-		logSize = st.size;
+		try {
+			const st = statSync(info.log);
+			logAgeSec = Math.round((Date.now() - st.mtimeMs) / 1000);
+			logSize = st.size;
+		} catch {
+			/* the log was there when the project was read and is gone now (deleted, rotating): no age, no size */
+		}
 	}
 	const listening = probe ? await probePort(info.port) : null;
 	const verdicts = [];

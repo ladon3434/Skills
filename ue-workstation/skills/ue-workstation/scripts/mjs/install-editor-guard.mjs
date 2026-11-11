@@ -57,7 +57,7 @@ export function wire(settings, { uninstall = false, hookPath = HookPath } = {}) 
 
 function main(argv) {
 	const at = argv.indexOf('--settings');
-	const target = at >= 0 ? resolve(argv[at + 1]) : join(homedir(), '.claude', 'settings.json');
+	const target = at >= 0 ? resolve(argv[at + 1]) : join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'settings.json');
 	const uninstall = argv.includes('--uninstall');
 	const dry = argv.includes('--dry-run');
 	if (!uninstall && !existsSync(HookPath)) {

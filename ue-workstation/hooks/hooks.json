@@ -3,11 +3,26 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|PowerShell|mcp__.*unreal.*",
+        "matcher": "Bash|PowerShell|Monitor|mcp__.*unreal.*",
         "hooks": [
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/editor-guard.mjs\"",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/no-tree-git-editor-open.mjs\"",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/ue-workstation/hooks/git-policy.mjs\"",
             "timeout": 30
           }
         ]
@@ -77,7 +92,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash|PowerShell|mcp__.*unreal.*",
+        "matcher": "Bash|PowerShell|Monitor|mcp__.*unreal.*",
         "hooks": [
           {
             "type": "command",

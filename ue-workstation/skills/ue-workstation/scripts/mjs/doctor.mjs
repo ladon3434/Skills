@@ -92,7 +92,9 @@ if (!project) {
 // plugin wins. A hand-wired editor-guard in settings.json (the pre-plugin install) still counts.
 const readText = (p) => { try { return readFileSync(p, 'utf8'); } catch { return ''; } };
 const readJson = (p) => { try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; } };
-const userSettingsPath = join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.claude', 'settings.json');
+// The Claude config dir: CLAUDE_CONFIG_DIR when set, else ~/.claude.
+const ConfigDir = (process.env.CLAUDE_CONFIG_DIR || join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.claude'));
+const userSettingsPath = join(ConfigDir, 'settings.json');
 const projectSettingsPath = project ? join(project.root, '.claude', 'settings.json') : null;
 const localSettingsPath = project ? join(project.root, '.claude', 'settings.local.json') : null;
 function pluginState(name) {
@@ -140,7 +142,7 @@ if (engine.unrealHome && existsSync(join(engine.unrealHome, 'compile_commands.js
 // -- the kit's plugins: what is enabled, whether each one's dependencies are enabled too, and the tools only some
 // of them need. Install paths come from Claude Code's own record of installed plugins.
 const KitMarketplaces = new Set(['ue-skills', 'private-skills']);
-const installed = readJson(join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.claude', 'plugins', 'installed_plugins.json'))?.plugins ?? {};
+const installed = readJson(join(ConfigDir, 'plugins', 'installed_plugins.json'))?.plugins ?? {};
 const kit = Object.entries(installed)
 	.map(([id, rows]) => ({ id, name: id.split('@')[0], market: id.split('@')[1], path: rows?.at(-1)?.installPath }))
 	.filter((p) => KitMarketplaces.has(p.market) && pluginState(p.name)?.on);

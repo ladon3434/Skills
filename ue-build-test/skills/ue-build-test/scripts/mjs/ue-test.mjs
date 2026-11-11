@@ -20,7 +20,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { exitWith, gate, gatePlan, renderCommand, Verdict } from './ue-gate.mjs';
 import { editorsOfProject } from './ue-proc.mjs';
-import { fullPassFilter } from './ue-test-suites.mjs';
+import { fullPassFilter, scanSuites } from './ue-test-suites.mjs';
 import { failureReport, judgeRun, loadQuarantine, parseRunLog } from './ue-test-log.mjs';
 import { binariesStale, parseArgs, resolveTools } from './ue-tools.mjs';
 
@@ -60,6 +60,14 @@ if (!filter) {
 	console.log('No automation suite is declared in this project (no IMPLEMENT_*_AUTOMATION_TEST / DEFINE_SPEC under Source/ or Plugins/).');
 	console.log('A full pass that selects nothing verified nothing. Name a filter explicitly to run something else.');
 	exitWith(Kind, Verdict.Failed, 2);
+}
+
+if (!explicit) {
+	const { generated } = scanSuites(tools.projectDir);
+	if (generated.length) {
+		console.log(`WARNING: ${generated.length} file(s) declare CQTest classes with GenerateTestDirectory - their suite comes from the folder, not the text,`);
+		console.log(`         so the full pass does NOT select them (${generated.slice(0, 3).join(', ')}${generated.length > 3 ? ', ...' : ''}). Give them a literal path or name their filter.`);
+	}
 }
 
 const quarantineFile = args.quarantine ?? process.env.UE_TEST_QUARANTINE ?? join(tools.projectDir, '.claude', 'ue-test-quarantine.json');
@@ -109,8 +117,7 @@ if (editors.headless.length) {
 if (!editors.precise || editors.opaque) console.log('WARNING: some editor processes cannot be attributed to a project - one may be this project\'s.');
 const stale = binariesStale(tools);
 if (stale.stale) {
-	console.log('WARNING: C++ sources are newer than the newest module binary - the run would test OLD code, and tests added since');
-	console.log('         the last compile silently do not exist. Run ue-compile.cmd first.');
+	blockers.push('C++ sources are newer than the newest module binary - the run would test OLD code, and tests added since the last compile do not exist. Run ue-compile.cmd first, then rerun.');
 }
 
 if (dry) {

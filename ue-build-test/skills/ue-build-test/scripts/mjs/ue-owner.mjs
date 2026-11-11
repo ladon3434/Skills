@@ -171,7 +171,11 @@ export const projectOfCmd = (cmd) => {
 	return u ? dirname(resolve(u)) : null;
 };
 
-/** The project folder at or above `start` (the folder holding a .uproject), or null. */
+/**
+ * The project folder at or above `start` (the folder holding a .uproject); failing that CLAUDE_PROJECT_DIR; failing
+ * that the ONE folder directly under `start` that holds a .uproject (a session at a repository root above
+ * `Game/Game.uproject`); or null.
+ */
 export function findProjectRoot(start = process.cwd(), env = process.env) {
 	const tryDir = (d) => {
 		try {
@@ -188,6 +192,13 @@ export function findProjectRoot(start = process.cwd(), env = process.env) {
 		dir = up;
 	}
 	if (env.CLAUDE_PROJECT_DIR && tryDir(env.CLAUDE_PROJECT_DIR)) return resolve(env.CLAUDE_PROJECT_DIR);
+	try {
+		const below = readdirSync(resolve(start), { withFileTypes: true })
+			.filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules')
+			.map((e) => join(resolve(start), e.name))
+			.filter(tryDir);
+		if (below.length === 1) return below[0];
+	} catch { /* unreadable folder: no project */ }
 	return null;
 }
 

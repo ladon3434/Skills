@@ -22,7 +22,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DeclRe = /\b(?:IMPLEMENT_[A-Z_]*AUTOMATION_TEST|BEGIN_DEFINE_SPEC|DEFINE_SPEC|TEST_CLASS(?:_[A-Z_]+)?)\s*\([^"();]*"([A-Za-z_][A-Za-z0-9_]*)[."]/g;
+// The path literal may sit inside TEXT("..."); CQTest's one-method TEST(Name, "Path") declares a class as well.
+const DeclRe = /\b(?:IMPLEMENT_[A-Z_]*AUTOMATION_TEST|BEGIN_DEFINE_SPEC|DEFINE_SPEC|TEST_CLASS(?:_[A-Z_]+)?|TEST)\s*\((?:[^"();]|TEXT\s*\()*"([A-Za-z_][A-Za-z0-9_]*)([."])/g;
+// A CQTest class whose folder the engine derives from the source path: its suite is not in the text.
+const GeneratedDirRe = /\b(?:TEST_CLASS(?:_[A-Z_]+)?|TEST)\s*\([^"();]*\bGenerateTestDirectory\b/;
 const SkipRe = /(^|[\\/])(Binaries|Intermediate|Saved|DerivedDataCache|ThirdParty)[\\/]/;
 
 /** Suite prefixes declared in one file's text. Pure. */
@@ -36,9 +39,25 @@ export function suitesInText(text) {
 	return [...found];
 }
 
-/** Every suite prefix declared under Source/ or Plugins/ of `projectDir`, sorted. */
-export function declaredSuites(projectDir) {
-	const found = new Set();
+const stripComments = (text) => String(text).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+/** Suites whose every declaration in the text is a ONE-segment path (`"Solo"`): `StartsWith:Solo` would miss them. Pure. */
+export function oneSegmentSuites(text) {
+	const dotted = new Set();
+	const bare = new Set();
+	for (const m of stripComments(text).matchAll(DeclRe)) (m[2] === '.' ? dotted : bare).add(m[1]);
+	return [...bare].filter((s) => !dotted.has(s));
+}
+
+/** Does the text declare a CQTest class with `GenerateTestDirectory` (a suite this scan cannot name)? Pure. */
+export const declaresGeneratedDir = (text) => GeneratedDirRe.test(stripComments(text));
+
+/** Walks the project's test sources once: {suites, bare (one-segment only), generated (files with GenerateTestDirectory)}. */
+export function scanSuites(projectDir) {
+	const suites = new Set();
+	const bare = new Set();
+	const dotted = new Set();
+	const generated = [];
 	for (const top of ['Source', 'Plugins']) {
 		const abs = join(projectDir, top);
 		if (!existsSync(abs)) continue;
@@ -56,24 +75,43 @@ export function declaredSuites(projectDir) {
 			} catch {
 				continue;
 			}
-			if (!body.includes('AUTOMATION_TEST') && !body.includes('DEFINE_SPEC') && !body.includes('TEST_CLASS')) continue;
-			for (const s of suitesInText(body)) found.add(s);
+			if (!/AUTOMATION_TEST|DEFINE_SPEC|TEST_CLASS|\bTEST\s*\(/.test(body)) continue;
+			const all = suitesInText(body);
+			const one = new Set(oneSegmentSuites(body));
+			for (const s of all) { suites.add(s); (one.has(s) ? bare : dotted).add(s); }
+			if (declaresGeneratedDir(body)) generated.push(join(top, rel));
 		}
 	}
-	return [...found].sort();
+	return { suites: [...suites].sort(), bare: [...bare].filter((s) => !dotted.has(s)).sort(), generated };
+}
+
+/** Every suite prefix declared under Source/ or Plugins/ of `projectDir`, sorted. */
+export function declaredSuites(projectDir) {
+	return scanSuites(projectDir).suites;
 }
 
 /**
- * The minimal set that still selects everything: RunTests matches by PREFIX, so a suite whose name starts
- * with another declared suite is already selected by it (`Vehicle` covers `VehicleTools`). Pure.
+ * Suites not already selected by another one when tokens match by PREFIX (`Vehicle` covers `VehicleTools`). Pure.
+ * Only for plain tokens: a `StartsWith:` token ends at the dot and covers nothing but its own suite.
  */
 export function coveringSet(suites) {
 	return suites.filter((s) => !suites.some((o) => o !== s && s.startsWith(o)));
 }
 
+/**
+ * RunTests tokens that select exactly the declared suites. A plain token matches as a SUBSTRING of the test path
+ * (`Game` would also run the engine's `...GameplayTags...` tests), so each suite goes as `StartsWith:<Suite>`,
+ * which the engine matches as the prefix `<Suite>.`. A suite declared only as a one-segment path (`"Solo"`) has
+ * no dot to match and stays a plain token. Pure.
+ */
+export function filterTokens(suites, bare = []) {
+	return suites.map((s) => (bare.includes(s) ? s : `StartsWith:${s}`));
+}
+
 /** The full-pass filter for a project, or '' when it declares no suite. */
 export function fullPassFilter(projectDir) {
-	return coveringSet(declaredSuites(projectDir)).join('+');
+	const { suites, bare } = scanSuites(projectDir);
+	return filterTokens(suites, bare).join('+');
 }
 
 export function selftest({ realProject } = {}) {
@@ -94,6 +132,13 @@ export function selftest({ realProject } = {}) {
 	eq(suitesInText('// IMPLEMENT_SIMPLE_AUTOMATION_TEST(FD, "Commented.Out", F)'), [], 'a commented-out test is not a test');
 	eq(suitesInText('IMPLEMENT_SIMPLE_AUTOMATION_TEST(FE, "WorldAuthoring.X", F)'), ['WorldAuthoring'], 'a long name survives whole');
 	eq(coveringSet(['Game', 'GameTools', 'Combat']), ['Game', 'Combat'], 'a prefix covers its extension');
+	eq(suitesInText('TEST(SmokeTest, "Game.Smoke")'), ['Game'], 'CQTest one-method TEST');
+	eq(suitesInText('IMPLEMENT_SIMPLE_AUTOMATION_TEST(FT, TEXT("Game.Text"), F)'), ['Game'], 'a path inside TEXT()');
+	eq(suitesInText('TEST_METHOD(DoesThing)'), [], 'a TEST_METHOD declares no suite');
+	eq(declaresGeneratedDir('TEST_CLASS(InvTests, GenerateTestDirectory)'), true, 'a generated test directory is noticed');
+	eq(declaresGeneratedDir('TEST_CLASS(InvTests, "Game.Inv")'), false, 'a literal directory is not');
+	eq(oneSegmentSuites('IMPLEMENT_COMPLEX_AUTOMATION_TEST(FC, "Solo", F)\nTEST(A, "Game.X")'), ['Solo'], 'a one-segment path is told apart');
+	eq(filterTokens(['Game', 'GameTools', 'Solo'], ['Solo']), ['StartsWith:Game', 'StartsWith:GameTools', 'Solo'], 'suites go as StartsWith tokens, a one-segment suite as a plain one');
 
 	// Fixture tree: suites under Source and a plugin, generated trees ignored.
 	const root = mkdtempSync(join(tmpdir(), 'ue-suites-'));
@@ -107,7 +152,9 @@ export function selftest({ realProject } = {}) {
 		put('Plugins/Kit/Source/Kit/Private/K.cpp', 'IMPLEMENT_SIMPLE_AUTOMATION_TEST(FK, "GameKit.K", F)');
 		put('Plugins/Kit/Intermediate/Build/Gen.cpp', 'IMPLEMENT_SIMPLE_AUTOMATION_TEST(FG, "Generated.G", F)');
 		eq(declaredSuites(root), ['Combat', 'Game', 'GameKit'], 'fixture: declared suites');
-		eq(fullPassFilter(root), 'Combat+Game', 'fixture: covering filter');
+		put('Source/Game/Private/Tests/Gen.cpp', 'TEST_CLASS(GenTests, GenerateTestDirectory)\n{\n};');
+		eq(fullPassFilter(root), 'StartsWith:Combat+StartsWith:Game+StartsWith:GameKit', 'fixture: full-pass filter');
+		eq(scanSuites(root).generated.length, 1, 'fixture: the file with a generated test directory is reported');
 		eq(fullPassFilter(join(root, 'nope')), '', 'no source -> empty filter');
 	} finally {
 		rmSync(root, { recursive: true, force: true });

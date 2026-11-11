@@ -52,7 +52,7 @@ export function cleanPlan(projectDir, { saved = false } = {}) {
 }
 
 function main() {
-	const args = parseArgs(process.argv.slice(2), { project: {}, saved: { type: 'bool' }, 'dry-run': { type: 'bool' }, help: { type: 'bool' } });
+	const args = parseArgs(process.argv.slice(2), { project: {}, saved: { type: 'bool' }, 'dry-run': { type: 'bool' }, help: { type: 'bool' } }, { strict: true });
 	if (args.help) {
 		console.log('usage: ue-clean.cmd [--project p] [--saved] [--dry-run]');
 		return 0;

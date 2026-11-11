@@ -220,21 +220,29 @@ async function launchGuard() {
 	return { refuse: v.reason };
 }
 
-/** Records the editor this bridge just started: `pid` when the spawn is the editor, else found by start time. */
+/**
+ * Records the editor this bridge just started: `pid` when the spawn is the editor, else found by start time.
+ * @returns {boolean} false when it should be tried again (the process query failed, the editor is not listed yet).
+ */
 function claimLaunched(since, pid = null) {
-	if (!Info) return;
+	if (!Info) return true;
 	const snap = snapshot();
-	if (!snap) return;
+	if (!snap) return false;
 	const me = whoAmI(snap);
-	if (!me) return;
+	if (!me) return true; // no agent session above the bridge: nobody to record it for
 	const fresh = editors(snap, me).filter((e) =>
 		pid ? e.pid === pid : e.state === 'human' && sameProject(e.project, Info.project) && e.start != null && e.start >= since - 2000);
 	for (const e of fresh) {
 		if (e.state === 'mine') continue;
 		const r = claim(snap, me, e.pid, { projectRoot: Info.project, since });
 		log(r.ok ? `editor pid ${e.pid} recorded as this session's (Saved/AgentEditors)` : `editor pid ${e.pid} not recorded: ${r.reason}`);
+		if (!r.ok) return false;
 	}
+	return fresh.length > 0;
 }
+
+/** The editor this bridge spawned and has not recorded yet: {since, pid} or null. */
+let pendingClaim = null;
 
 function acquireLaunchLock() {
 	for (let attempt = 0; attempt < 2; attempt++) {
@@ -337,11 +345,20 @@ async function connectFlow() {
 		}
 		const deadline = Date.now() + LaunchTimeoutMs;
 		let pollMs = 250;
+		// The marker is what lets a session stop the editor it started: a failed attempt (the process query, an editor
+		// not listed yet) is tried again on the next poll, and once more if the client leaves first (pendingClaim).
 		let claimed = since === null;
+		let claimTries = 0;
+		if (!claimed) pendingClaim = { since, pid: spawnedPid };
 		const claimOnce = () => {
-			if (claimed) return;
-			claimed = true;
-			claimLaunched(since, spawnedPid);
+			if (claimed || claimTries >= 30) return;
+			claimTries++;
+			try {
+				claimed = claimLaunched(since, spawnedPid);
+			} catch (e) {
+				log(`ownership marker not written: ${e.message}`);
+			}
+			if (claimed) pendingClaim = null;
 		};
 		while (Date.now() < deadline) {
 			if (since !== null && Date.now() - since > 3000) claimOnce();
@@ -366,9 +383,17 @@ async function connectFlow() {
 function startConnect() {
 	if (upstreamReady) return Promise.resolve(true);
 	if (!connecting) {
-		connecting = connectFlow().finally(() => {
-			if (!upstreamReady) connecting = null;
-		});
+		// An exception inside the flow (a file that vanished, a marker that cannot be written) is a failed connect, not
+		// a rejection: a rejected promise here left the caller's tools/call without any answer.
+		connecting = connectFlow()
+			.catch((e) => {
+				launchRefused = `connecting to the editor failed: ${e?.message ?? e}`;
+				log(launchRefused);
+				return false;
+			})
+			.finally(() => {
+				if (!upstreamReady) connecting = null;
+			});
 	}
 	return connecting;
 }
@@ -505,6 +530,11 @@ async function relayToEditor(msg) {
 			return;
 		}
 		const cause = e?.cause?.code || e?.cause?.message;
+		// Node's fetch gives up on a silent response after 300 s whatever the bridge's own budget is; the editor does not.
+		if (cause === 'UND_ERR_HEADERS_TIMEOUT' || cause === 'UND_ERR_BODY_TIMEOUT') {
+			send(toolError(id, `NO ANSWER in 300 s from ${what}: the bridge stopped waiting, the editor did NOT stop working - the call is most likely still running on its game thread. Do not re-run a call that changes content; read the state back first. Split a long operation into shorter calls.`));
+			return;
+		}
 		send(makeError(id, -32002, `Upstream MCP call failed for ${what}: ${e.message}${cause ? ` (${cause})` : ''}`));
 	}
 }
@@ -570,9 +600,19 @@ rl.on('line', (line) => {
 	handleMessage(msg).catch((e) => log('handler error:', e.message));
 });
 rl.on('close', () => {
+	// The client left while the editor this bridge started is still unrecorded: without its marker the editor has
+	// no window and no owner, and no session may stop it.
+	if (pendingClaim) {
+		try {
+			claimLaunched(pendingClaim.since, pendingClaim.pid);
+		} catch (e) {
+			log(`ownership marker not written: ${e.message}`);
+		}
+	}
 	log('stdin closed; exiting (the editor, if any, stays up)');
 	process.exit(0);
 });
+process.on('unhandledRejection', (e) => log('unhandled rejection:', e?.message ?? e));
 process.on('exit', () => {
 	if (launchLockHeld) releaseLaunchLock();
 });

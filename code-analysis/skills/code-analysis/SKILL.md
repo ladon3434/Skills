@@ -10,7 +10,7 @@ description: >
   Research an approach before building ("how do others do X").
   Reads and reports, never edits (the fix: ue-cpp-authoring; a failing build:
   ue-build-test). Tools: engine-api, hazards, log-scan, crash-triage, review voices (Fable + agy /
-  codex); agents code-scout / engine-reader / log-triage / reviewer / refuter. Russian: «проанализируй», «аудит»,
+  codex). Russian: «проанализируй», «аудит»,
   «разбери модуль», «отревьюй», «посмотри изменения», «проверь на утечки/GC»,
   «перф-ревью», «проверь стиль», «проверь репликацию», «десинк», «не реплицируется», «почему упало», «разбери краш», «символизируй дамп», «найди причину», «тест флакает», «что в логах», «как это делают».
 ---
@@ -46,7 +46,8 @@ index also needs `ctags`/`readtags` (Universal Ctags). On Windows call the `.cmd
   Prints the declaration and `file:line`, no more than a couple of dozen lines — fine to call
   right in the main context. Order: cache (`<skill>/references/engine-api/*.md`, then the
   project's `.claude/engine-api/*.md`) → ctags index → ripgrep over `Engine/Source` and
-  `Engine/Plugins`. A signature that was hard to get goes into the skill's cache as a
+  `Engine/Plugins`. A signature that was hard to get goes into the project's `.claude/engine-api/<domain>.md` (in a clone
+  of the marketplace — into the skill's cache; an installed plugin's folder is replaced by the next update) as a
   `## <Symbol>` section with a date. Math: `TVector::Size2D`, not
   `FVector::Size2D` (template aliases).
 - **Engine index** — `<skill>/scripts/engine-index.cmd [--engine|--templates|--status]`.
@@ -64,10 +65,11 @@ index also needs `ctags`/`readtags` (Universal Ctags). On Windows call the `.cmd
   `KNOWN_HAZARDS=<path>`) and the shared `<skill>/references/ue-hazards.md` (~125 hazards:
   build, editor, assets, Blueprint, materials, UI, animation, world, networking, Epic MCP, and
   separately Windows / Claude Code). Never read the file whole. A new repeatable
-  hazard is one section: project-specific in the project's file, engine-wide in the skill's file.
+  hazard is one section in the project's file; an engine-wide one also goes into the skill's file in a clone of
+  the marketplace (an installed plugin's folder is replaced by the next update).
   Start debugging with `hazards.cmd <symptom>` — it is cheaper than any investigation.
 - **Build, cook, UAT logs** — `<skill>/scripts/log-scan.cmd [--since <min> | --latest N] [--file <path>]`:
-  suspicious lines by kind, repeats collapsed, output capped; exit 1 — there are findings.
+  suspicious lines by kind, repeats collapsed, output capped; exit 1 — there are findings, 2 — a log could not be read (not a clean run).
   Taking a huge log apart as a whole — the `log-triage` agent.
 - **Crash folder or minidump** — `<skill>/scripts/crash-triage.cmd [<crash folder> | <.dmp>] [--symbolicate] [--symbols <pdb dir>] [--json]`;
   without a path — the newest crash of the project. Error, crash type, the top frames with engine/OS noise

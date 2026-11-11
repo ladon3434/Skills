@@ -27,7 +27,8 @@ import { editorsOfProject } from './ue-proc.mjs';
 import { binariesStale, parseArgs, resolveTools } from './ue-tools.mjs';
 
 const Kind = 'blueprints';
-const ReflectedType = /^\s*(?:UCLASS|USTRUCT|UENUM|UINTERFACE)\s*\([^)]*\)\s*(?:\n\s*)*(?:class|struct|enum\s+class|enum)\s+(?:\w+_API\s+)?([A-Z]\w+)/gm;
+// The specifier list may nest parentheses one level: UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent)).
+const ReflectedType = /^\s*(?:UCLASS|USTRUCT|UENUM|UINTERFACE)\s*\((?:[^()]|\([^()]*\))*\)\s*(?:\n\s*)*(?:class|struct|enum\s+class|enum)\s+(?:\w+_API\s+)?([A-Z]\w+)/gm;
 const TypePrefix = /^[UAFEI](?=[A-Z])/;
 const AllowListRel = 'Saved/ue-build-test/BlueprintAllowList.txt';
 
@@ -114,7 +115,15 @@ function changedHeaders(projectDir) {
 	const tracked = git(['diff', '--name-only', 'HEAD', '--', 'Source', 'Plugins']);
 	const untracked = git(['ls-files', '--others', '--exclude-standard', '--', 'Source', 'Plugins']);
 	if (tracked === null || untracked === null) return null;
-	return [...tracked, ...untracked].filter((p) => /\.(h|hpp)$/i.test(p)).map((p) => join(projectDir, p)).filter((p) => existsSync(p));
+	const isHeader = (p) => /\.(h|hpp)$/i.test(p);
+	// The committed text of each changed header too: a type renamed or removed (or a deleted header) is named only there.
+	const before = [];
+	for (const p of tracked.filter(isHeader)) {
+		try {
+			before.push(execFileSync('git', ['show', `HEAD:./${p}`], { cwd: projectDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }));
+		} catch { /* a header new since HEAD has no committed text */ }
+	}
+	return { files: [...tracked, ...untracked].filter(isHeader).map((p) => join(projectDir, p)).filter((p) => existsSync(p)), before };
 }
 
 function assetsMentioning(contentRoot, names) {
@@ -172,8 +181,8 @@ async function main() {
 				console.log('ERROR: git could not list the changed headers (not a git checkout?). Use --type A,B instead.');
 				exitWith(Kind, Verdict.Failed, 2);
 			}
-			names = [...new Set(headers.flatMap((h) => reflectedTypes(readFileSync(h, 'utf8'))))].sort();
-			console.log(`Changed headers: ${headers.length}, reflected types in them: ${names.join(', ') || 'none'}`);
+			names = [...new Set([...headers.files.map((h) => readFileSync(h, 'utf8')), ...headers.before].flatMap(reflectedTypes))].sort();
+			console.log(`Changed headers: ${headers.files.length}, reflected types in them (now or at HEAD): ${names.join(', ') || 'none'}`);
 		} else {
 			names = [...new Set(args.type.split(',').filter((s) => s.trim()).map(bareName))].sort();
 		}

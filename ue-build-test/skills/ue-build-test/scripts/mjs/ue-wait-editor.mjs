@@ -64,8 +64,9 @@ async function main() {
 	for (let tick = 0; ; tick++) {
 		const e = editorsOfProject(projectDir);
 		const logPath = args.log ?? join(projectDir, 'Saved', 'Logs', e.headless.length ? `${name}-Headless.log` : `${name}.log`);
+		// No editor start time (none running yet, or the query gave none): only a log written since this wait began counts.
 		const startMs = Math.max(0, ...[...e.start.values()].filter((v) => typeof v === 'number'));
-		if (port ? await portOpen(port) : logSaysReady(logPath, startMs)) {
+		if (port ? await portOpen(port) : logSaysReady(logPath, startMs || started - 5000)) {
 			console.log(`READY after ${Math.round((Date.now() - started) / 1000)}s${port ? ` (port ${port})` : ` (${logPath})`}`);
 			return 0;
 		}

@@ -112,16 +112,16 @@ The editor does not block `ue-game-build`: the Game target builds separate binar
 
 ## Tests
 
-- After a build — the suite of the affected area: `ue-test.cmd <Suite>[+<Suite2>]` (filter by test
-  path prefix). A full pass — no argument: the suite list is read from the sources
+- After a build — the suite of the affected area: `ue-test.cmd <Suite>[+<Suite2>]` (a plain token
+  matches anywhere in the test path, as in the engine; `StartsWith:<Suite>` only that suite). A full pass — no argument: the suite list is read from the sources
   (`IMPLEMENT_*_AUTOMATION_TEST`, `DEFINE_SPEC`), not maintained by hand. There is no empty
   filter: it would run Epic's suites.
 - `OK` means: the run reached `TEST COMPLETE`, every filter token ran ≥1 test, nothing failed
   outside quarantine. A shortfall on a cold start after a build (plugin tests register late, and
   the exit is still 0) — one "warm" retry, then `FAILED`.
 - Added tests — make sure their names are in the output/log. An editor started before the build
-  holds the old DLLs: the new tests "don't exist" and the run is green. The script warns when the
-  sources are newer than the binaries.
+  holds the old DLLs: the new tests "don't exist" and the run is green. The script refuses to run
+  (`DEFERRED`) when the sources are newer than the binaries: compile first.
 - A check that could not run is a FAIL, not "nothing found". A test checks the layer it claims
   to. Outside the suites the build is the gate.
 - Flaky-test quarantine — `<project>/.claude/ue-test-quarantine.json` (sample

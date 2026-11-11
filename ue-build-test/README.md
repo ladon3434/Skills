@@ -22,7 +22,7 @@ Paths are relative to the skill folder `skills/ue-build-test/`; `.claude-plugin/
 | `scripts/ue-stop-editor.cmd` | gentle close of this project's editor, waiting for the DLLs |
 | `scripts/ue-run-editor-headless.cmd`, `ue-wait-editor.cmd` | windowless editor and waiting until it is ready |
 | `scripts/ue-tail-log.cmd`, `ue-clean.cmd`, `ue-info.cmd` | log tail, cleanup, what was found |
-| `hooks/unbuilt-cpp.mjs` | Stop hook: C++ this session edited but did not build keeps the turn open; off with `UE_BT_STOP_CHECK=0` |
+| `hooks/unbuilt-cpp.mjs` | Stop hook: C++ this session edited (Edit/Write tools) but did not build gets one reminder before the turn ends; off with `UE_BT_STOP_CHECK=0` |
 | `scripts/ue-selftest.cmd` | offline check of the scripts |
 | `scripts/mjs/ue-engine.mjs` | engine lookup (one file in every plugin, master in `ue-workstation`; `.uproject` wins over `UE_VERSION`) |
 | `scripts/mjs/ue-tools.mjs`, `ue-proc.mjs`, `ue-gate.mjs`, `ue-build-flow.mjs`, `ue-test-log.mjs` | project and targets; processes per project; verdict, `.bat` with spaces, waiting for our turn; shared build flow; test log parsing |

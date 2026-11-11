@@ -13,7 +13,7 @@
 // Which files: modified within --since <minutes>, else the --latest N newest (default 5). No snapshot file —
 // "logs of the run I just did" is `--since <its duration>`.
 //
-// Exit: 0 nothing suspicious · 1 findings · 2 no project / no logs / bad arguments.
+// Exit: 0 nothing suspicious · 1 findings · 2 no project / no logs / a log that could not be read / bad arguments.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -87,7 +87,7 @@ export function candidateLogs(projectDir, env = process.env, { projectName = '',
 	const mine = (f) => {
 		if (allUat || !projectName) return true;
 		try {
-			const text = readFileSync(f, 'utf8').toLowerCase();
+			const text = readLog(f).toLowerCase();
 			return marks.some((m) => text.includes(m));
 		} catch {
 			return false;
@@ -115,6 +115,23 @@ export function messageKey(line) {
 }
 
 /** PURE over text: suspicious lines of one log; repeats of one message fold into the first, with a count. */
+/**
+ * A log's text whatever its encoding: UTF-8 (with or without a BOM) or UTF-16 — what Windows PowerShell 5.1 writes
+ * for `>` and `Tee-Object`. Read as UTF-8, a UTF-16 log has a NUL between every two letters and matches nothing.
+ */
+export function decodeLog(buf) {
+	if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) return buf.subarray(2).toString('utf16le');
+	if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) return Buffer.from(buf.subarray(2)).swap16().toString('utf16le');
+	// No BOM: ASCII text in UTF-16LE has a NUL in every odd byte.
+	const probe = buf.subarray(0, 4096);
+	let nul = 0;
+	for (let i = 1; i < probe.length; i += 2) if (probe[i] === 0) nul++;
+	if (probe.length >= 8 && nul > probe.length / 4) return buf.toString('utf16le');
+	return buf.toString('utf8').replace(/^﻿/, '');
+}
+
+const readLog = (path) => decodeLog(readFileSync(path));
+
 export function scanText(text) {
 	const hits = [];
 	const byKey = new Map();
@@ -151,7 +168,7 @@ function usage(code) {
 
 A message repeated many times is shown once with xN (numbers and addresses ignored when comparing).
 
-Exit 0 clean, 1 findings, 2 no project / no logs / bad arguments. A whole huge log -> the log-triage agent.`);
+Exit 0 clean, 1 findings, 2 no project / no logs / an unreadable log / bad arguments. A whole huge log -> the log-triage agent.`);
 	process.exit(code);
 }
 
@@ -162,6 +179,19 @@ function main(argv) {
 	const max = Number(opt('--max') ?? 40);
 	const kinds = opt('--kind')?.split(',').map((s) => s.trim()).filter(Boolean);
 	if (!Number.isFinite(max) || max < 0) usage(2);
+	for (const f of ['--since', '--latest']) {
+		if (opt(f) !== undefined && !(Number(opt(f)) >= 0)) {
+			console.error(`log-scan: ${f} takes a number, got "${opt(f)}"`);
+			process.exit(2);
+		}
+	}
+	if (kinds) {
+		const unknown = kinds.filter((k) => !Kinds.some((x) => x.kind === k));
+		if (unknown.length) {
+			console.error(`log-scan: unknown --kind ${unknown.join(', ')} (known: ${Kinds.map((x) => x.kind).join(', ')})`);
+			process.exit(2);
+		}
+	}
 
 	let targets;
 	if (files.length) {
@@ -190,13 +220,16 @@ function main(argv) {
 	}
 
 	let total = 0;
+	let unreadable = 0;
 	const byKind = {};
 	for (const t of targets) {
 		let text;
 		try {
-			text = readFileSync(t.path, 'utf8');
-		} catch {
-			console.log(`\n${t.path}: unreadable`);
+			text = readLog(t.path);
+		} catch (e) {
+			// A log that was not read is not a clean log: the verdict below says so.
+			unreadable++;
+			console.log(`\n${t.path}: UNREADABLE (${e.code ?? e.message})`);
 			continue;
 		}
 		let hits = scanText(text);
@@ -221,8 +254,12 @@ function main(argv) {
 		if (hits.length > shown.length) console.log(`  … ${hits.length - shown.length} more distinct (--max, --kind, or the log-triage agent)`);
 	}
 	const summary = Object.entries(byKind).map(([k, n]) => `${k} ${n}`).join(', ');
-	console.log(`\nRESULT: ${total ? `${total} suspicious line(s) in ${targets.length} log(s): ${summary}` : `clean - ${targets.length} log(s)`}`);
-	process.exit(total ? 1 : 0);
+	const read = targets.length - unreadable;
+	const skipped = unreadable ? `; ${unreadable} log(s) could NOT be read` : '';
+	if (total) console.log(`\nRESULT: ${total} suspicious line(s) in ${read} log(s): ${summary}${skipped}`);
+	else if (unreadable) console.log(`\nRESULT: not checked - ${unreadable} of ${targets.length} log(s) could not be read (a wrong path, a locked or oversized file)`);
+	else console.log(`\nRESULT: clean - ${targets.length} log(s)`);
+	process.exit(total ? 1 : unreadable ? 2 : 0);
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main(process.argv.slice(2));

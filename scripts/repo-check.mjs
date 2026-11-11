@@ -9,7 +9,12 @@
 //   [VER] a plugin.json WITH a `version` (it freezes updates; the commit SHA is the version)
 //   [DEP] a plugin.json dependency that is no plugin of the checked marketplaces
 //   [DSC] a SKILL.md description over 1024 characters (the loader cuts it; the tail - often the triggers - is lost)
-//   [MKT] a marketplace entry whose folder or plugin.json is missing
+//   [MKT] a marketplace entry whose folder or plugin.json is missing, or whose description differs from the
+//         plugin.json's (the marketplace list and the installed plugin then describe two different things)
+//   [REF] a launcher that points at a file that is not there: a hooks.json command (${CLAUDE_PLUGIN_ROOT}/...),
+//         a .cmd wrapper (%~dp0...), a bin/ shim ($(dirname "$0")/...). Such a hook fails silently in every session.
+//
+// The offline tests of the plugins are a separate run: node scripts/run-tests.mjs.
 //
 // Another marketplace dir (the private one) is checked the same way, its copies against THIS repo's masters,
 // and its plugins count as known dependencies both ways. Exit 0 clean, 1 problems.
@@ -22,7 +27,7 @@ const Here = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const MasterDir = join(Here, 'ue-workstation', 'skills', 'ue-workstation', 'scripts', 'mjs');
 const SharedModules = ['ue-engine.mjs', 'ue-proc.mjs', 'ue-owner.mjs', 'ue-pyremote.mjs'];
 const DescriptionLimit = 1024;
-const SkipDirs = new Set(['.git', 'node_modules', '__pycache__']);
+const SkipDirs = new Set(['.git', 'node_modules', '__pycache__', '.local', '.obsidian']);
 
 const problems = [];
 const say = (tag, where, what) => problems.push(`[${tag}] ${relative(Here, where) || '.'}: ${what}`);
@@ -58,6 +63,9 @@ function plugins(root) {
 			} catch (err) {
 				say('MKT', pj, `unreadable (${err.message})`);
 			}
+		}
+		if (manifest && e.description && manifest.description && e.description !== manifest.description) {
+			say('MKT', mkt, `${e.name}: the description differs from ${relative(Here, pj)} - copy the plugin.json's over it`);
 		}
 		return { name: e.name, dir, manifest, pj };
 	});
@@ -100,6 +108,26 @@ for (const { root, plugins: list } of all) {
 		const base = f.slice(f.lastIndexOf(f.includes('\\') ? '\\' : '/') + 1);
 		if (SharedModules.includes(base) && dirname(f) !== MasterDir && text(f) !== masters[base]) {
 			say('CPY', f, `differs from the master ue-workstation/.../${base} - copy the master over it`);
+		}
+		// Launchers: the file each one starts must exist.
+		const missing = (target) => { if (!existsSync(target)) say('REF', f, `points at ${relative(root, target)}, which does not exist`); };
+		if (base === 'hooks.json' && /[\\/]hooks$/.test(dirname(f))) {
+			const pluginRoot = dirname(dirname(f));
+			const commands = [];
+			const collect = (v) => {
+				if (Array.isArray(v)) v.forEach(collect);
+				else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) (k === 'command' && typeof x === 'string' ? commands.push(x) : collect(x));
+			};
+			try {
+				collect(JSON.parse(readFileSync(f, 'utf8')));
+			} catch (e) {
+				say('REF', f, `unreadable (${e.message})`);
+			}
+			for (const c of commands) for (const m of c.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}([^"'\s]+)/g)) missing(join(pluginRoot, m[1]));
+		} else if (base.endsWith('.cmd')) {
+			for (const m of text(f).matchAll(/%~dp0([^"\s%]+\.(?:mjs|py|js|ps1|cmd))/gi)) missing(join(dirname(f), m[1]));
+		} else if (/[\\/]bin$/.test(dirname(f)) && !base.includes('.')) {
+			for (const m of text(f).matchAll(/\$\(dirname "\$0"\)\/([^"\s]+)/g)) missing(join(dirname(f), m[1]));
 		}
 		if (base === 'SKILL.md') {
 			const d = description(f);

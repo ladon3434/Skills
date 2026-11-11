@@ -71,14 +71,16 @@ alone; the owner is told "second opinion not done: no Fable on this account".
   `--dangerously-skip-permissions` — it approves writes and commands too. A denial notice in its stderr makes the
   status `PARTIAL`.
 - **codex** runs `exec --sandbox read-only` with the brief on stdin, and prints only its final message to
-  stdout. Verified on Windows: a write is refused with "Access ... is denied".
+  stdout. Verified on Windows: a write is refused with "Access ... is denied". The sandbox limits writes and
+  commands, not reads: unlike `agy`, codex is not confined to the subject and the brief folder — what else it can
+  read depends on its own sandbox setup on the machine.
 - Both also get a read-only line at the head of the prompt; in practice they refuse there already.
 - After the run `review-voices` compares a fingerprint of the subject (`git diff HEAD` plus every untracked file's
   size and time; ignored files not covered) with the one taken before. `untouched=CHANGED` means the content moved
   — with the voices sandboxed, most likely a person or another session working in the same tree: revert nothing,
   show `git status` to the person. Not a git tree — `UNCHECKED`.
-- The reports go to `--out` (default a new temp folder), outside the subject and the brief folder, so a voice
-  cannot read another voice's report.
+- The reports go to `--out` (default a new temp folder), outside the subject and the brief folder: `agy` cannot
+  read another voice's report (codex is not granted the folder, but its reads are not confined — see above).
 
 ## Calling by hand
 

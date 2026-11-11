@@ -19,7 +19,16 @@ Layout notes (verified against UE 5.8 Engine/Source/Runtime/CoreUObject/Private/
 import mmap
 import re
 import struct
+import sys
 from pathlib import Path
+
+# Package names are not ASCII everywhere (SM_石.uasset, a Cyrillic folder). A console in an ANSI code page makes
+# print() die with UnicodeEncodeError halfway through a report; every tool here imports this module, so say it once.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 PACKAGE_TAG = 0x9E2A83C1
 PKG_CONTAINS_MAP = 0x00020000
@@ -406,11 +415,22 @@ def content_mounts(project_root, engine_root=None):
     return mounts
 
 
+_resolved_mounts = {}
+
+
+def _resolved(content):
+    """A mount folder resolved once: resolve() per file and per mount made a tree of plugins quadratic."""
+    key = str(content)
+    if key not in _resolved_mounts:
+        _resolved_mounts[key] = Path(content).resolve()
+    return _resolved_mounts[key]
+
+
 def package_name_of(file, mounts):
     f = Path(file).resolve()
     for mount, content in mounts:
         try:
-            rel = f.relative_to(content.resolve())
+            rel = f.relative_to(_resolved(content))
         except ValueError:
             continue
         return mount + rel.with_suffix("").as_posix()

@@ -17,8 +17,8 @@ the third voice, fable (code-analysis:reviewer agent), is dispatched by Claude a
   review-voices run --brief <file> --subject <dir> [--out <dir>] [--only agy,codex] [--timeout-min 15] [--dry-run]
       run the brief through every voice found, in parallel; reports in <out>/<voice>.md (+ .err)
 
-The brief and any file it names (diff.patch) live in the brief's folder; the voices may read that folder and the
-subject, nothing else is granted. --out (default: a new temp folder) must lie outside both.
+The brief and any file it names (diff.patch) live in the brief's folder; the voices are pointed at that folder and
+the subject (agy can read nothing else; codex is sandboxed against writes, not reads). --out (default: a new temp folder) must lie outside both.
 
 Last line: RESULT: voices <voice>=<OK|PARTIAL|EMPTY|FAILED|TIMEOUT|ABSENT> ... untouched=<OK|CHANGED|UNCHECKED>
 Exit: 0 at least one report, 1 every voice failed, 2 usage error, 3 no voice on the machine
