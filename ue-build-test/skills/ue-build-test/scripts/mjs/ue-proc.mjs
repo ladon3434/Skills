@@ -26,7 +26,7 @@
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const IsWindows = process.platform === 'win32';
@@ -144,7 +144,26 @@ export function pidsOf(imageName, env = process.env) {
 export function editorsOfProject(projectRoot, env = process.env) {
 	const rows = listEditorProcesses(env);
 	if (rows === null) return { gui: [], headless: [], pids: [], opaque: 0, foreign: 0, start: new Map(), precise: false };
-	return { ...matchProjectEditors(rows, projectRoot), precise: true };
+	// One folder has several spellings on Windows: an 8.3 short name (C:\Users\RUNNER~1\...), a junction, a subst
+	// drive. Both sides are brought to the real path where the file system can tell; the given spelling stays too.
+	const real = (p) => {
+		try {
+			return realpathSync.native(p);
+		} catch {
+			return null;
+		}
+	};
+	const withReal = rows.map((r) => {
+		const u = typeof r.cmd === 'string' ? (r.cmd.match(/"([^"]+?\.uproject)"/i) ?? r.cmd.match(/(?:^|\s)([^\s"]+?\.uproject)(?=\s|$)/i))?.[1] : null;
+		// The .uproject named on the command line, or - when it is not on disk - its folder.
+		const folder = u ? real(dirname(u)) : null;
+		const long = u ? real(u) ?? (folder ? join(folder, basename(u)) : null) : null;
+		return long && long !== u ? { ...r, cmd: `${r.cmd} "${long}"` } : r;
+	});
+	const roots = [...new Set([projectRoot, real(projectRoot)].filter(Boolean))];
+	const hits = roots.map((root) => matchProjectEditors(withReal, root));
+	const best = hits.reduce((a, b) => (b.pids.length > a.pids.length ? b : a));
+	return { ...best, precise: true };
 }
 
 /** One human line for a non-empty answer, '' when nothing of ours runs. */
