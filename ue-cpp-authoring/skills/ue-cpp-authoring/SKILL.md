@@ -31,6 +31,10 @@ code in a repository you have not written to in this session.
   `Engine/Plugins` from a subagent. `FVector::X` is declared as `TVector::X`: a miss on an alias is
   not proof of absence. How a whole mechanism works — a subagent, not reading the engine in the
   main context.
+- **Advisor before the shape is fixed.** With an advisor in the session (`/advisor`), consult it once the
+  approach is chosen and before the first header is written, when the change picks an architecture: a new
+  subsystem, component or module, where state lives, what replicates, a GAS design, removing or replacing a
+  working system. Not for a field, a log line or a body edit.
 - **Format hook.** If the project runs clang-format after every edit (a PostToolUse hook), the
   next `Edit` built on the old text may not match — re-read the region. `#include` order is often
   manual (`SortIncludes: false`) — do not reorder.
@@ -159,3 +163,8 @@ tools: check it does not exist, Python vs C++, real types, raise on failure, ter
 It builds the way the project prescribes (or its build skill), it is formatted, every mechanic logs its numbers
 behind a switch that is off by default (`references/logging.md`), and after touching editor-only surface in a
 runtime module the game target is built too.
+
+A change that is more than a body edit — a new class, reflected surface in a header, networking, a deletion or
+rename — is also read back as a diff against the code-analysis review checklist (`references/review.md` there,
+if installed) before it is reported; findings that would change the report go to the `code-analysis:refuter`
+agent first (without the plugin — re-read each at its `file:line` yourself). With an advisor in the session, consult it once before saying "done" on such a change.

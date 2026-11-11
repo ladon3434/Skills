@@ -110,6 +110,12 @@ The debugger is not applicable — temporary logs, and only temporary: values, n
 both sides of a hand-off (caller and callee); `ensure` instead of `check` — a stack and keep going, not
 a crash on the first hit; the project's log category, not `LogTemp`. Cause found — remove it all.
 
+## Two hypotheses down
+
+The second hypothesis disproved, or a fix that did not help — stop editing. With an advisor in the session
+(`/advisor`), consult it with the evidence so far before the next hypothesis; without one, say to the owner what
+was ruled out and what the next check is. A third guess on top of two failed ones is how a fix becomes masking.
+
 ## What not to do
 
 - A nullptr check where the pointer has no right to be empty is masking: the crash

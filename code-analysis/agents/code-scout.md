@@ -2,6 +2,7 @@
 name: code-scout
 description: Read-only broad discovery inside the current project — find where code/assets/config live across many files or unknown locations. Returns file paths + one-line roles + entry points, never file dumps. Use for any unknown-location or fan-out search instead of general-purpose.
 model: haiku
+effort: low
 tools: Glob, Grep, Read
 ---
 

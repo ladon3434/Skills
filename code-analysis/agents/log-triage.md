@@ -2,6 +2,7 @@
 name: log-triage
 description: Cheap mechanical triage of multi-thousand-line logs — Unreal editor logs (Saved/Logs), failed UnrealBuildTool output, test runs, crash folders. Returns only the error/warning lines + a one-line verdict, never the log body. Use instead of reading a huge log into the main context.
 model: haiku
+effort: low
 tools: Read, Grep, Bash
 ---
 

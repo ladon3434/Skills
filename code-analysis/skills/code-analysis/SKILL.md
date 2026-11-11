@@ -9,8 +9,8 @@ description: >
   that contradicts the code; post-mortem of cook/build/UAT logs ("the build passed, but…").
   Research an approach before building ("how do others do X").
   Reads and reports, never edits (the fix: ue-cpp-authoring; a failing build:
-  ue-build-test). Tools: engine-api, hazards, log-scan, crash-triage;
-  agents code-scout / engine-reader / log-triage. Russian: «проанализируй», «аудит»,
+  ue-build-test). Tools: engine-api, hazards, log-scan, crash-triage, review voices (Fable + agy /
+  codex); agents code-scout / engine-reader / log-triage / reviewer / refuter. Russian: «проанализируй», «аудит»,
   «разбери модуль», «отревьюй», «посмотри изменения», «проверь на утечки/GC»,
   «перф-ревью», «проверь стиль», «проверь репликацию», «десинк», «не реплицируется», «почему упало», «разбери краш», «символизируй дамп», «найди причину», «тест флакает», «что в логах», «как это делают».
 ---
@@ -74,12 +74,18 @@ index also needs `ctags`/`readtags` (Universal Ctags). On Windows call the `.cmd
   collapsed and the first project frame marked, the crash log's fatal lines, what to open next, and
   `RESULT: crash <type> at <frame>`. An unsymbolicated stack goes through `cdb` on the minidump (the command is
   printed to rerun); no `cdb` — it says what to install. Exit 0 stack, 1 nothing usable, 2 setup error.
-- In Bash the plugin's commands are available by name: `engine-api`, `hazards`, `log-scan`, `crash-triage`.
+- **External review voices** — `<skill>/scripts/review-voices.cmd` with `list` or `run ...`: `agy` (Gemini) and `codex`,
+  sandboxed read-only, in parallel, bounded; none on the machine — exit 3. The `reviewer` agent (Fable) is the third voice and joins every second opinion.
+  When and how — `references/review.md`, "Second opinion".
+- In Bash the plugin's commands are available by name: `engine-api`, `hazards`, `log-scan`, `crash-triage`,
+  `review-voices`.
 - **Agents** come with the plugin and are called with its prefix — `code-analysis:code-scout`,
-  `code-analysis:engine-reader`, `code-analysis:log-triage`; short names below:
-  `code-scout` (haiku) — where things are, paths and roles; `engine-reader` (sonnet) — how
+  `code-analysis:engine-reader`, `code-analysis:log-triage`, `code-analysis:reviewer`, `code-analysis:refuter`;
+  short names below: `code-scout` (haiku) — where things are, paths and roles; `engine-reader` (sonnet) — how
   an engine or sample mechanism works, with `file:line`; `log-triage` (haiku) — errors from
-  a huge log plus a verdict. Read the engine and samples only through them, not in the main
+  a huge log plus a verdict; `reviewer` (fable) — the Fable voice in every second opinion; `refuter` (opus) —
+  tries to disprove findings before they are reported. The model is pinned in each agent: do not override it
+  for the whole session with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Read the engine and samples only through them, not in the main
   context. Give the agent the engine root (from `ue-engine.mjs`) and, if needed, the samples
   root. Agents not installed — give the same prompt to `general-purpose` (`Explore` will do
   for locating, not for judging code against the project's rules: it does not load `CLAUDE.md`).
@@ -111,10 +117,12 @@ index also needs `ctags`/`readtags` (Universal Ctags). On Windows call the `.cmd
    they do not load `CLAUDE.md`, so they do not know the project's conventions). Prompt —
    "Axis prompt" below. A subject of ≤2 files / <500 lines — walk the axes yourself, no fan-out.
 4. **Deep pass** (depth "deep", the owner's word, an architectural decision) — external
-   voices, a completeness critic and a refuter, `references/external-voices.md`.
+   voices — `fable` always, `agy`/`codex` per the subject — a completeness critic and a refuter,
+   `references/external-voices.md`.
 5. **Synthesis.** Dedup, rank by severity across axes. Every finding of severity 2–3 is
-   re-read at its `file:line` before it enters the report (an agent may be wrong): one that
-   does not hold is dropped, a doubtful one is marked.
+   re-read at its `file:line` before it enters the report (an agent may be wrong) — many of them go to
+   `refuter` agents, one per axis report: one that does not hold is dropped, a doubtful one is marked.
+   With an advisor in the session (`/advisor`), consult it once before writing the ranked report.
 
 ### Axis prompt
 

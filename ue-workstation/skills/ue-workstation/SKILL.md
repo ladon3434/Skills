@@ -169,6 +169,19 @@ Keep the ports of your local services (MCP servers, bridges) OUTSIDE the Windows
 boot, and `listen()` fails with EACCES, which looks like "already running". `doctor --ports` checks
 both the range and the currently excluded blocks.
 
+## Models: main, advisor, subagents
+
+- **Advisor** — a stronger model the main one consults mid-task (`/advisor <model>`, `advisorModel` in the
+  *user* settings, `/advisor off`; Anthropic API and Claude Platform on AWS only). It is a cost decision of the
+  person, so it never goes into the project's `settings.json`. The main model decides when to call it; the kit's
+  skills name the moments — before an architecture is fixed (ue-cpp-authoring), the same build error twice
+  (ue-build-test), two hypotheses down (code-analysis `debug.md`), before "done" on a non-trivial change. The
+  advisor must be at least as capable as the main model; an invalid pair silently runs without it.
+- **Subagents** — the kit pins the model in each agent's frontmatter (`code-scout`/`log-triage` haiku,
+  `engine-reader` sonnet, `reviewer` fable, `refuter` opus). `CLAUDE_CODE_SUBAGENT_MODEL` only fills in where
+  an agent names none; with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` it overrides every agent — a cheap model there
+  turns the reviewer, the refuter and every audit axis (`general-purpose`) into that model. Do not force it.
+
 ## Variables
 
 | Variable | Why |

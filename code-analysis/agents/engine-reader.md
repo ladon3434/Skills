@@ -2,6 +2,7 @@
 name: engine-reader
 description: Deep read of the Unreal Engine source / Epic samples — HOW a subsystem or mechanism works, not just where it lives. Reads bodies in the external corpora and returns a structured digest (entry points, call flow, key classes with file:line, caveats), never file dumps. Use when a locate answer or the engine-api signature selector is not enough and the mechanism itself must be understood.
 model: sonnet
+effort: medium
 tools: Glob, Grep, Read
 ---
 

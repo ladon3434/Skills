@@ -1,98 +1,118 @@
-# External voices (`agy`, `codex`) and the `fable` critic
+# Review voices: Fable, `agy`, `codex`
 
-For deep analysis and expensive decisions. Only Claude calls them, non-interactively, in English,
-with the full question and the constraints in the prompt — the voices have no repository config. They
-read; they do not edit code and do not touch git.
+For deep analysis, expensive decisions and reviews before release. Three voices: **`fable`** — the
+`code-analysis:reviewer` agent on Claude Fable, present in every second opinion; **`agy`** (Gemini) and **`codex`**
+(OpenAI) — external CLIs, when the machine has them and the subject calls for them. Only Claude calls them,
+non-interactively, in English, with the full question and the constraints in one brief — the voices have no
+repository config. They read; they do not edit code and do not touch git. The diff-review recipe that uses them — `review.md`,
+"Second opinion".
 
 ## First — what is on the machine
 
-`codex --version`, `agy --version`, `agy models`. A voice that is absent is not called and not waited for;
-the report states who was missing. Substitution rules — below.
+`review-voices list` (Bash; from PowerShell `<skill>\scripts\review-voices.cmd list`) — each external voice, its
+binary and the model it would run, plus the `fable` line, then `RESULT: voices ...`; exit 3 — no external voice
+(`fable` alone). The script runs only the external voices; `fable` is an Agent call Claude makes in the same
+message. A voice that is absent is not called and not waited for; the report states who was missing.
+
+- `agy` — on PATH or `%LOCALAPPDATA%\agy\bin\agy.exe` (`AGY_EXE` overrides).
+- `codex` — on PATH, else the CLI inside the Codex desktop app (Microsoft Store:
+  `<package>\app\resources\codex.exe`; the folder name carries the version and moves on every update, so the
+  script asks Appx for it, `CODEX_EXE` overrides).
+- `UE_REVIEW_VOICES=none|agy|codex|agy,codex` — which voices may run at all on this machine.
 
 ## A voice is a model family, not a binary
 
-`agy` is a shell over several families: Gemini (`gemini-*`), OpenAI open-weight
-(`gpt-oss-*`) and Claude (`claude-*`). `agy` with a `claude-*` model is the same vendor as us;
-it does not count as a cross-vendor voice. The signature in the report is by model: `agy/gemini-3.1-pro-high`,
-`codex/<model>`, `fable`.
+`agy` is a shell over several families: Gemini (`gemini-*`), OpenAI open-weight (`gpt-oss-*`) and Claude
+(`claude-*`). `agy` with a `claude-*` model is the same vendor as us; it does not count as a cross-vendor voice.
+Model names change with every release, so none is written down here: `review-voices` takes the first non-Flash
+`gemini-*-high` that `agy models` lists (`UE_REVIEW_AGY_MODEL` overrides) and runs `codex` on its own default
+model (`UE_REVIEW_CODEX_MODEL` overrides). The signature in the report is by model, as `review-voices` prints it:
+`agy/<model>`, `codex`, `fable`.
+
+The `fable` voice is the strongest Claude model, but the same vendor as the main session: a stronger reader, not
+an independent family of mind — agreement between it and the main session is agreement within one vendor, and
+between it and an external voice it is a real second vendor. `fable` is the anchor: without
+Fable on the account there is no second opinion at all — no substitute model, and the external voices do not run
+alone; the owner is told "second opinion not done: no Fable on this account".
 
 ## Which voices
 
-- External subject (the engine, the market, other people's decisions) → `agy` (Gemini Pro) + `codex`.
-- Internal subject (our harness, conventions, own code) → by default without them; a second
-  opinion — `fable` (an agent with `model: fable`). The owner switches the external ones on by word.
-- System subject (the answer rewrites how the machine or the game works) → `agy` + `codex`
-  always, with the repository root and history.
-- "no external" from the owner — without both.
+- `fable` — always, in every second opinion and deep pass, whatever else runs.
+- External subject (the engine, the market, other people's decisions) → plus `agy` + `codex`.
+- Internal subject (our harness, conventions, own code) → `fable` only by default; the owner switches the external
+  ones on by word.
+- System subject (the answer rewrites how the machine or the game works) → plus `agy` + `codex` always, with the
+  repository root and history.
+- No external voice on the machine, or "no external" from the owner → `fable` alone; the report says there was no
+  cross-vendor voice.
 - A conclusion that rests only on agreement within one vendor is marked as such.
-- A secret in a gitignored repository file still travels to the external analyst: secrets
-  only in environment variables.
+- A secret in a gitignored repository file still travels to the external analyst: secrets only in environment
+  variables.
 
-## No `codex` — substitute through `agy`
+## One voice missing
 
-The codex role is a second strong voice independent of Gemini. It is covered like this:
+- **No `codex`** → `fable` + `agy`. The report says honestly: one cross-vendor voice.
+- **No `agy`** → `fable` + `codex`, the same.
+- **Only Flash in `agy`** — `review-voices` marks it `WEAK`: evidence, never the deciding verdict.
+- **`gpt-oss-*` does not replace codex.** Tested on a review with a known answer: in 19 s it ruled "accept" where
+  the defect was, and proposed a "defect" that does not exist. Fit only as a cheap additional voice, never as the
+  sole or deciding verdict; `review-voices` never picks it.
+- Any external verdict a conclusion rests on is re-checked by Claude against the code itself — in that same test
+  Gemini Pro had the real finding and gpt-oss a false one, and from outside they cannot be told apart.
 
-- **A pair of voices** (external/system subject) → `agy/gemini-3.1-pro-high` + the `fable` critic.
-  The report says honestly: there is one cross-vendor voice.
-- **Single-verdict reviewer** (`review.md`) → `agy/gemini-3.1-pro-high`. Not Flash: a review
-  is wanted for depth.
-- **`gpt-oss-*` does not replace codex.** Tested on a review with a known answer: in 19 s it ruled
-  "accept" where the defect was, and proposed a "defect" that does not exist. Fit only as a
-  cheap additional voice, never as the sole or deciding verdict.
-- Any external verdict a conclusion rests on is re-checked by Claude against the code
-  itself — in that same test Gemini Pro had the real finding and gpt-oss a false one, and from outside they
-  cannot be told apart.
+## Read-only, and how it is enforced
 
-## `agy` is never read-only
+- **agy** auto-allows reads *and writes* inside its workspace in headless mode, and soft-denies (exit 0, a notice
+  on stderr) anything it would have to ask about — so a prompt alone does not make it read-only, and a read
+  outside the granted folders silently yields an empty or partial report. `review-voices` passes session rules
+  (`--settings`, never saved): allow `read_file` on the subject and the brief folder, deny `write_file`,
+  `command`, `unsandboxed`, `execute_url`, `read_url` and `mcp` on everything (deny beats allow). Verified: with
+  them a write and a shell command are refused with "Matches user-configured deny rule". Never
+  `--dangerously-skip-permissions` — it approves writes and commands too. A denial notice in its stderr makes the
+  status `PARTIAL`.
+- **codex** runs `exec --sandbox read-only` with the brief on stdin, and prints only its final message to
+  stdout. Verified on Windows: a write is refused with "Access ... is denied".
+- Both also get a read-only line at the head of the prompt; in practice they refuse there already.
+- After the run `review-voices` compares a fingerprint of the subject (`git diff HEAD` plus every untracked file's
+  size and time; ignored files not covered) with the one taken before. `untouched=CHANGED` means the content moved
+  — with the voices sandboxed, most likely a person or another session working in the same tree: revert nothing,
+  show `git status` to the person. Not a git tree — `UNCHECKED`.
+- The reports go to `--out` (default a new temp folder), outside the subject and the brief folder, so a voice
+  cannot read another voice's report.
 
-`agy` has no read sandbox. `--mode plan` does not forbid writes: in it the agent writes a plan,
-asks for approval — and still creates the file. `--sandbox` restricts the terminal, not writes.
-Therefore:
+## Calling by hand
 
-- Do not give a reader voice `--dangerously-skip-permissions`: in `-p` reading works without it.
-- Run from an empty report folder (cwd), attach the subject with `--add-dir`; in the prompt — "read-only,
-  do not create, edit or delete any file; print the whole report to stdout".
-- After the call check that the subject is untouched: `git status --short` in a repository, otherwise
-  `find <subject> -newer <brief file>`. Touched — revert its edit and say so in the report.
+When `review-voices` itself is not usable (another OS, a flag it does not pass), `review-voices run ... --dry-run`
+prints each voice's exact argv (as JSON) and what goes to stdin. Rules that hold either way:
 
-## Calling
-
-- `agy --model gemini-3.1-pro-high --add-dir "<subject>" --print-timeout 900s -p "$(cat <brief>)" < /dev/null > <report> 2> <report>.err`
-  - always name the model: without `--model` it takes whatever is set in `~/.gemini/antigravity-cli/settings.json`;
-  - the report arrives whole on stdout, exit 0; Pro on a one-file review — ~2.5 minutes, Flash —
-    under a minute; `--print-timeout` guards against a hang;
-  - empty stdout with exit 0 is a failure, not "nothing to say".
-- `codex exec --sandbox workspace-write -m <model> -c model_reasoning_effort="high" --cd "<abs. path of the report folder>" '<prompt>' < /dev/null`
-  - Always `< /dev/null`: otherwise `codex exec` waits for stdin forever.
-  - The report is written in one piece at the end: minutes without stdout and without a file are writing, not
-    a hang. A hang is a live process whose stdout has not grown for longer than ~15 minutes.
-  - `--cd` — a literal absolute path (`$CLAUDE_PROJECT_DIR` can be empty in a background
-    subshell); a non-git folder also needs `--skip-git-repo-check`.
-  - In `--sandbox read-only` it cannot write the report file — either `workspace-write` with
-    `--cd` on the report folder, or the whole report to stdout with redirection.
-  - Exit 0 with an empty report is a failure, check the file size.
-- Call the binaries directly, not through wrappers and aliases (their flags land before yours);
-  machine config in `~/.bashrc` and `~/.gemini/` may override flags.
+- name the `agy` model: without `--model` it takes whatever `~/.gemini/antigravity-cli/settings.json` says;
+- give `agy` the deny rules above, and every voice the read-only line at the head of the prompt;
+- `codex exec` without a prompt argument reads stdin: give it the brief on stdin, or `< /dev/null` with the prompt
+  as an argument — otherwise it waits for stdin forever;
+- exit 0 with an empty report is a failure, not "nothing to say": check the file size and the stderr;
+- call the binaries directly, not through wrappers and aliases (their flags land before yours); machine config in
+  `~/.bashrc`, `~/.codex/config.toml` and `~/.gemini/` may override flags.
 
 ## Waiting for the voices
 
-Each voice runs in the background with its report going to a file; `agy` is capped by
-`--print-timeout 900s`, `codex` counts as hung by the rule above (no stdout growth for ~15 minutes).
-The caller does not wait for a notification: once the axis reports are in, it looks at the report
-folder itself. A voice past its cap is killed, and the report says "did not finish" for it — the
-synthesis does not stall on one voice.
+`review-voices run` waits for every voice in parallel and kills a voice's process tree past its cap
+(`--timeout-min`, default 15; `agy` also gets `--print-timeout` just under it). Start it in the background with an
+outer bound of the cap plus a margin — `timeout 1100 review-voices run ...` for the default cap — so the outer bound
+never cuts the run before its own cap does; on Ctrl+C or a signal it kills the voices it started. Dispatch the
+`fable` voice (the `reviewer` agent) in the same message, and read the report folder once both are in. A voice with `TIMEOUT`, `FAILED`
+or `EMPTY` is named "did not answer" in the report — the synthesis does not stall on one voice.
 
 ## Completeness critic
 
-Before the synthesis of a deep pass — a separate agent gets the question and all axis reports and
-answers one thing: what was not considered, which finding rests on an unverified assumption,
-which axis would have been worth adding. Its answer is an input to the synthesis, not a report to the owner.
+Before the synthesis of a deep pass — a separate agent gets the question and all axis reports and answers one
+thing: what was not considered, which finding rests on an unverified assumption, which axis would have been worth
+adding. Its answer is an input to the synthesis, not a report to the owner.
 
 ## Refuter
 
-The critic looks for what is missing; the refuter for what is wrong. In a deep pass every finding of
-severity 2–3 goes to a separate agent (`general-purpose`, or `fable` for a second family of mind)
-whose only task is to disprove it: read the cited `file:line` and the code around it, and answer
-`holds` · `does not hold` · `cannot establish`, with the evidence. A finding that does not hold is
-dropped; one that cannot be established is reported as doubtful. Many findings — one refuter per
-axis report, all in one message.
+The critic looks for what is missing; the refuter for what is wrong. In a deep pass every finding of severity 2–3
+goes to the `code-analysis:refuter` agent (Opus whatever the main model is), whose only task is to disprove it:
+read the cited `file:line` and the code around it, and answer `holds` · `does not hold` · `cannot establish`, with
+the evidence. A finding that does not hold is dropped; one that cannot be established is reported as doubtful.
+Many findings — one refuter per axis report, all in one message. Agents not installed — `general-purpose` with
+the same task.

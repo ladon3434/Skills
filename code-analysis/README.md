@@ -10,13 +10,13 @@ Paths are relative to the skill folder `skills/code-analysis/`; `.claude-plugin/
 | Path | What |
 | --- | --- |
 | `SKILL.md` | routing (incl. research mode), goal-and-limits card and brief, analysis by axes (incl. compliance, large-subject checks), axis prompt, severity 0–3, report |
-| `references/review.md` | diff review, scope of the check by signs, UE C++ checklist (GC, lambdas and timers, lifecycle, perf, names and texts), the codex reviewer (without it — agy/Gemini Pro) |
+| `references/review.md` | diff review, scope of the check by signs, UE C++ checklist (GC, lambdas and timers, lifecycle, perf, names and texts), second opinion: the Fable voice plus external voices |
 | `references/review-replication.md` | networking pass of a review or audit (UE 5.8): authority and roles, replicated properties and OnRep, RPCs, ownership/relevancy/dormancy, subobjects, Fast Array, NetSerialize, prediction, Iris, multiplayer testing; source-verified |
 | `references/debug.md` | proving the root before the fix: where the evidence is, crash dumps, addresses and log lines, causes by frequency, breakpoints, instrumentation |
 | `references/research.md` | research before building: earlier research first, axes fanned out, arbiter, two or more options, plan with sources, archive |
 | `references/sources.md` | where to look outside the project: official docs, which Epic sample is the reference for what, rejected samples, expert sites |
 | `references/project-inventory.md` | whole-project analysis: inventory, content taxonomy, code measures, process, design against implementation, with commands |
-| `references/external-voices.md` | agy / codex / fable, waiting for voices, completeness critic, refuter |
+| `references/external-voices.md` | review voices fable / agy / codex: which voices for which subject, one missing, agy is never read-only, waiting, completeness critic, refuter |
 | `references/engine-api/*.md` | cache of verified UE 5.8 signatures |
 | `references/ue-hazards.md` | 126 hazards: engine by domain + separately Windows / Claude Code |
 | `scripts/engine-api.*` | engine signature selector |
@@ -24,8 +24,9 @@ Paths are relative to the skill folder `skills/code-analysis/`; `.claude-plugin/
 | `scripts/hazards.*` | known-hazard search |
 | `scripts/log-scan.*` | build / cook / UAT log digest: kinds, repeat collapsing, `--since`, `--file` |
 | `scripts/crash-triage.*` | crash folder / minidump digest: error, type, collapsed stack with the first project frame, crash-log lines, next step; symbolicates an unsymbolicated stack through `cdb`; `--json`, `--list`, `--selftest` |
+| `scripts/review-voices.*` | external review voices: finds `agy` and `codex` (incl. the Codex desktop app), picks the model, runs a brief through each in parallel under a read-only sandbox (agy: session deny rules) with a cap, checks the subject's content is unchanged; lists the third voice, fable (the `reviewer` agent Claude dispatches alongside); no external voice — exit 3, fable alone |
 | `scripts/mjs/ue-engine.mjs` | finding the installed engine |
-| `agents/*.md` | `code-scout`, `engine-reader`, `log-triage` |
+| `agents/*.md` | `code-scout` (haiku), `engine-reader` (sonnet), `log-triage` (haiku), `reviewer` (fable), `refuter` (opus) |
 
 ## Installation
 
@@ -39,8 +40,10 @@ claude plugin install code-analysis@ue-skills                 :: every project o
 Disable — `/plugin` → Installed (space), or `claude plugin disable code-analysis@ue-skills`. After installing —
 `/reload-plugins` or a new session. `<skill>` paths below are the plugin's `skills/code-analysis/` folder.
 
-The agents come with the plugin: `code-analysis:code-scout`, `code-analysis:engine-reader`, `code-analysis:log-triage`.
-The plugin puts the commands `engine-api`, `hazards`, `log-scan` and `crash-triage` on the Bash tool's PATH (the `bin/` folder); from PowerShell — through
+The agents come with the plugin: `code-analysis:code-scout`, `code-analysis:engine-reader`, `code-analysis:log-triage`,
+`code-analysis:reviewer`, `code-analysis:refuter`. The `reviewer` needs Claude Fable on the account; without it there is
+no second opinion at all — no substitute model, no external voices alone.
+The plugin puts the commands `engine-api`, `hazards`, `log-scan`, `crash-triage` and `review-voices` on the Bash tool's PATH (the `bin/` folder); from PowerShell — through
 `<skill>\scripts\*.cmd`.
 
 ## Environment
@@ -52,8 +55,12 @@ The plugin puts the commands `engine-api`, `hazards`, `log-scan` and `crash-tria
 | `UE_SAMPLES_ROOT` | Epic samples for the index and agents | unset — no samples index |
 | `ENGINE_INDEX_HOME` | shared folder of ctags indexes, one subfolder per engine inside (`UE_5.8\`) | `<engine>\.engine-index` |
 | `KNOWN_HAZARDS` | the project's hazard file | `<project>\.claude\docs\known-hazards.md` |
+| `UE_REVIEW_VOICES` | which external voices may run: `agy,codex` / `agy` / `codex` / `none` | `agy,codex` |
+| `AGY_EXE`, `CODEX_EXE` | explicit voice binaries | PATH, then `%LOCALAPPDATA%\agy\bin`, the Codex desktop app |
+| `UE_REVIEW_AGY_MODEL`, `UE_REVIEW_CODEX_MODEL` | voice models | the first non-Flash `gemini-*-high` that `agy models` lists; codex's own default |
 
 Needs `node` and `rg`; `ctags` is optional (without it, slower and through ripgrep only). `crash-triage` symbolicates
 minidumps with `cdb.exe` (Windows only, optional: without it the crash context's own stack is still read) —
 `winget install Microsoft.WinDbg`, or the Windows SDK feature "Debugging Tools for Windows"; `CDB_EXE` points at a
-specific one.
+specific one. External review voices are optional: `agy` (Antigravity CLI) and/or `codex` (the Codex CLI or
+the Codex desktop app); without either the review runs on the Fable voice (the `reviewer` agent) alone.

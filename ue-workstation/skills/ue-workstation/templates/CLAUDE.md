@@ -40,6 +40,9 @@ One leading skill per task; compilation, review, git and the editor lifecycle ar
 - A subagent returns text unless told otherwise; when a report file is wanted, the prompt says «write your report
   to `<path>`, then answer with the path and a status line».
 - A multi-step feature keeps its plan in a file in the repository; after compaction trust that file + `git log`.
+- Subagent models are pinned per agent; never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. With an advisor in the
+  session, consult it before an architecture is fixed, when the same error repeats, and before "done" on a
+  non-trivial change.
 
 ## Parallel work
 

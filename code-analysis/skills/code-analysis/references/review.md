@@ -20,7 +20,8 @@ project: its `CLAUDE.md`, `.claude/rules/`, architecture page, `.clang-format`.
    finding only when a concrete refutation is found, with its `file:line`; "seems debatable"
    is not one — LLM verdicts flip under counter-argument, more often towards the wrong answer.
    Neither proven nor refuted — keep it, marked "unconfirmed". Many findings (a branch before
-   release) — hand the check to a separate agent that gets only the finding and the code.
+   release) — hand the check to the `code-analysis:refuter` agent (Opus whatever the main
+   model is), which gets only the findings and the code; several batches — several refuters in one message.
 
 Plain formatting and what the compiler catches are not findings: clang-format and the build
 own them.
@@ -98,33 +99,40 @@ in the code: the goal is to find the unexpected too. Review does not change logi
   next to the line. Change history does not live in comments.
 - **Logging** — against the project's conventions (categories, macros, levels).
 
-## Cross-vendor reviewer (codex)
+## Second opinion: Fable plus the external voices
 
-Only for an expensive or irreversible decision (rewriting something that works, choosing an execution
-branch) or on the owner's word; ordinary changes do not call it.
+When: an expensive or irreversible decision (rewriting something that works, choosing an execution
+branch, deleting a system), a branch or module before release, or the owner's word ("с внешними",
+"with codex", "second opinion"). Ordinary changes do not call it.
 
-```bash
-codex exec --sandbox read-only -m <model> -c model_reasoning_effort="high" \
-  --cd "<project root>" "$(cat <brief file>)" < /dev/null > <report file> 2>&1
-```
-
-- `< /dev/null` is mandatory — without it `codex exec` hangs on stdin.
-- In a read-only sandbox it cannot write a file: the brief says so and asks for the whole report
-  on stdout; the caller redirects it.
-- The brief carries the whole subject and demands one verdict on a named claim —
-  `accept` · `return` · `cannot establish` — with references and a cheaper
-  alternative if there is one.
-- Exit 0 with an empty report is also a failure (`codex` can fail silently): check the file size.
-- Its false alarms are sorted out by whoever called it; the owner is not asked to choose.
-
-No `codex` on the machine — the same brief goes to `agy` with Gemini Pro (not Flash, not `gpt-oss`,
-not `claude-*`); why, and how it is worse — `external-voices.md`:
-
-```bash
-cd <empty report folder> && agy --model gemini-3.1-pro-high --add-dir "<subject>" \
-  --print-timeout 900s -p "$(cat <brief file>)" < /dev/null > <report file> 2>&1
-```
-
-- `agy` has no read-only mode (`--mode plan` writes too): the brief forbids edits, and after
-  the call `git status --short` confirms the subject is untouched.
-- Its verdict is evidence, not a decision: Claude checks a load-bearing finding against the code itself.
+1. **Who** — `review-voices list` first (Bash; from PowerShell `<skill>\scripts\review-voices.cmd list`),
+   then the table in `external-voices.md`, "Which voices". The `fable` voice (the `code-analysis:reviewer`
+   agent) is always one of them; the subject (internal / external / system), the owner's word and what the
+   machine has decide whether `agy` and `codex` join it. Our own code is an internal subject: the external
+   voices only on the owner's word.
+2. **Brief** — `brief.md` in a folder of its own outside the repository (the voices may read that folder and
+   the subject, nothing else). It carries: the subject (the range for `git diff`, or the files), the project
+   root, the engine root (`ue-engine.mjs`), the absolute path of this file with the checklist sections the
+   change calls for (plus `review-replication.md` for networking), the claim to judge if there is one, and
+   the output demand — findings as `severity 0-3 — file:line — what — why → how`, and on the claim one verdict
+   `accept` · `return` · `cannot establish` with a cheaper alternative if one exists. A big diff goes into
+   `diff.patch` next to the brief, named by its path.
+3. **Run, in one message:**
+   - the external voices, when step 1 calls for them, in Bash in the background with an outer bound of the cap plus a margin:
+     `timeout 1100 review-voices run --brief <brief folder>/brief.md --subject <project root>` (default cap
+     15 min; `--timeout-min N` → `timeout (N+3)*60`). Reports go to a new temp folder it prints, outside the
+     brief folder; each voice runs read-only (agy under deny rules for every write and command, codex in its
+     read-only sandbox);
+   - always the `fable` voice — the `code-analysis:reviewer` agent with the path of the same brief. Without
+     external voices (step 1 says so, or `review-voices` ends with exit 3) it is the whole review, and the
+     report says there was no cross-vendor voice. Fable unavailable on the account (the agent fails on the
+     model) — there is no second opinion: stop the `review-voices` run, use none of its reports, no substitute
+     model, and tell the owner "second opinion not done: no Fable on this account".
+4. **Read the outcome** — the last line `RESULT: voices <voice>=<status> ... untouched=<state>`:
+   - `OK` — a report; `PARTIAL` — a report, but a read was denied and it may rest on part of the subject;
+     `EMPTY`, `FAILED`, `TIMEOUT` — "did not answer" in the report, the synthesis does not wait for it;
+   - `untouched=CHANGED` (exit 4) — the subject's content moved during the run: a voice or a person working in
+     parallel. Revert nothing yourself — show the person `git status` and ask; `UNCHECKED` — say "not verified".
+5. **Synthesis.** Every report is evidence, not a decision. A finding a conclusion rests on is checked
+   against the code — by Claude itself or by `code-analysis:refuter`. A finding only one voice made is not
+   weaker for that; one that rests on agreement within one vendor (Fable and the main session) is marked so.

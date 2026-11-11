@@ -44,6 +44,11 @@ Read it, not the exit code: `ue-compile.cmd | tail` returns `tail`'s code. `DEFE
 nothing was built or checked (editor open, resource busy): say "not built" in the report, the
 task is not closed. Before `FAILED` the script prints an error summary and hints.
 
+The same root error in two `FAILED` runs in a row (the same UHT, compile or link error, the same test failing
+the same way after a fix) — stop editing. With an advisor in the session (`/advisor`), consult it with both error
+summaries before the next edit; without one, `hazards <error words>` (code-analysis), then a root-cause pass by
+its `debug.md`, not a third guess.
+
 ## What to do after a C++ change
 
 | What changed | Path |
