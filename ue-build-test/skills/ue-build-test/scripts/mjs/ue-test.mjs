@@ -16,7 +16,7 @@
 //   - a run that never reached TEST COMPLETE fails, even with exit 0.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { exitWith, gate, gatePlan, renderCommand, Verdict } from './ue-gate.mjs';
 import { editorsOfProject } from './ue-proc.mjs';
@@ -171,7 +171,17 @@ let verdict = null;
 let run = null;
 for (let attempt = 1; attempt <= attempts; attempt++) {
 	console.log(`Running automation tests, attempt ${attempt}/${attempts} (one-shot headless, minutes)... log: ${logPath}`);
-	rmSync(logPath, { force: true }); // an earlier run's log must not be counted as this one's
+	// An earlier run's log must not be counted as this one's - but it is the only evidence of a hang or a crash
+	// of that run, so it is kept one run back instead of being deleted.
+	const prevLog = logPath.replace(/Tests[.]log$/, 'Tests-prev.log');
+	try {
+		if (existsSync(logPath)) {
+			rmSync(prevLog, { force: true });
+			renameSync(logPath, prevLog);
+		}
+	} catch {
+		rmSync(logPath, { force: true });
+	}
 	const code = await runOnce();
 	run = existsSync(logPath) ? parseRunLog(readFileSync(logPath, 'utf8')) : parseRunLog('');
 	verdict = judgeRun({ exitCode: code ?? 1, run, filter, entries: quarantine.entries });
@@ -201,5 +211,5 @@ if (ok) {
 	exitWith(Kind, Verdict.Ok, 0);
 }
 for (const r of verdict.reasons) console.log(`- ${r}`);
-console.log(`Tests FAILED. Full log: ${logPath}`);
+console.log(`Tests FAILED. Full log: ${logPath} (the next run keeps it as ...-Tests-prev.log, one run back)`);
 exitWith(Kind, Verdict.Failed, 1);
