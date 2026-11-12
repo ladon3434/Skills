@@ -7,7 +7,8 @@
 //   (default)        every Blueprint under Content/ (/Game) and under the Content/ of the project's own plugins
 //                    (Plugins/**/<Name>.uplugin -> /<Name>); engine and marketplace-in-engine content is skipped
 //   --changed        only assets that mention a reflected type declared in a header changed since HEAD
-//   --no-plugins     leave plugin content out (third-party plugins whose Blueprints are not yours to fix)
+//   --no-plugins     leave plugin content out of the whole run (third-party plugins that are not yours to fix)
+//   --plugins        look into plugin content in --changed / --type too (the quick runs skip it)
 //   --type A,B       only assets that mention these types (the U/A/F/E/I prefix is optional)
 //
 // "Mention" = the type's name without its prefix appears in the .uasset bytes (a package's name table stores
@@ -16,7 +17,7 @@
 //
 // Same gates as ue-test: refuses next to an editor of this project, waits for what is not ours (ue-owner), and
 // refuses stale binaries (sources newer than the module DLLs) unless --allow-stale.
-// Usage: ue-check-blueprints.cmd [--changed | --type A,B] [--no-plugins] [--list-only] [--allow-stale] [--project p] [--wait s]
+// Usage: ue-check-blueprints.cmd [--changed | --type A,B] [--plugins | --no-plugins] [--list-only] [--allow-stale] [--project p] [--wait s]
 //        [--timeout min] [--dry-run] [-- <commandlet switches, e.g. -IgnoreFolder=/Game/A,/Game/B>]
 // Ends with: RESULT: blueprints <OK|FAILED|DEFERRED|DRY-RUN> (exit N)
 
@@ -169,6 +170,7 @@ async function main() {
 		type: {},
 		'list-only': { type: 'bool' },
 		'no-plugins': { type: 'bool' },
+		plugins: { type: 'bool' },
 		'allow-stale': { type: 'bool' },
 		wait: { default: '600' },
 		timeout: { default: '30' },
@@ -176,9 +178,9 @@ async function main() {
 		help: { type: 'bool' },
 	});
 	if (args.help) {
-		console.log('usage: ue-check-blueprints.cmd [--changed | --type A,B] [--no-plugins] [--list-only] [--allow-stale] [--project p] [--wait s] [--timeout min] [--dry-run] [-- <commandlet switches>]');
+		console.log('usage: ue-check-blueprints.cmd [--changed | --type A,B] [--plugins | --no-plugins] [--list-only] [--allow-stale] [--project p] [--wait s] [--timeout min] [--dry-run] [-- <commandlet switches>]');
 		console.log('  after --: passed to CompileAllBlueprints, e.g. -IgnoreFolder=/Game/ThirdParty,/Game/Demo');
-		console.log('  default: every Blueprint under Content/ and the Content/ of project plugins; --changed: assets mentioning types from headers changed since HEAD');
+		console.log('  default: every Blueprint under Content/ and the Content/ of project plugins; --changed: assets under Content/ mentioning types from headers changed since HEAD (plugin content with --plugins)');
 		console.log('  log: <project>/Saved/Logs/CompileAllBlueprints.log');
 		process.exit(0); // verdict-exempt: help
 	}
@@ -196,7 +198,9 @@ async function main() {
 		console.log(tools.error);
 		exitWith(Kind, Verdict.Failed, 1);
 	}
-	const roots = contentRoots(tools.projectDir).filter((r) => !args['no-plugins'] || r.mount === '/Game');
+	// Plugin content is part of the whole run only: the quick runs (--changed, --type) are made after every C++ change.
+	const withPlugins = args.plugins || (!args['no-plugins'] && !args.changed && !args.type);
+	const roots = contentRoots(tools.projectDir).filter((r) => withPlugins || r.mount === '/Game');
 	const rootOf = (file) => roots.find((r) => file.startsWith(r.dir + sep)) ?? roots[0];
 	console.log(`Project : ${tools.project}`);
 
@@ -219,10 +223,10 @@ async function main() {
 			exitWith(Kind, Verdict.Ok, 0);
 		}
 		assets = roots.flatMap((r) => assetsMentioning(r.dir, names));
-		console.log(`Assets mentioning ${names.join(', ')}: ${assets.length}`);
+		console.log(`Assets mentioning ${names.join(', ')}: ${assets.length}${withPlugins ? ' (plugin content included)' : ' (Content/ only; --plugins adds plugin content)'}`);
 		for (const a of assets) console.log(`  ${relative(tools.projectDir, a)}`);
 		if (!assets.length) {
-			console.log('No asset under Content/ (the project and its plugins) mentions these types - nothing to compile.');
+			console.log(`No asset under ${withPlugins ? 'Content/ (the project and its plugins)' : 'Content/ (plugin content not searched; --plugins adds it)'} mentions these types - nothing to compile.`);
 			exitWith(Kind, Verdict.Ok, 0);
 		}
 		console.log('Data assets in this list are not compiled by the commandlet: a field removed from C++ is lost in them silently - look at them.');
