@@ -286,8 +286,11 @@ export function startedByMe(snap, me, p, since) {
 /**
  * Writes the marker for an editor this session started, or adopts a headless orphan. An unmarked editor is
  * claimed only when startedByMe(since) holds — a person's editor is never claimed by accident.
+ * `spawnedBy` is the pid of the calling script when it started the editor itself: the editor then descends from
+ * the caller, which is proof enough even where the chain up to the agent is broken (Git Bash `timeout` and
+ * other MSYS wrappers leave a parent pid that names no live process).
  */
-export function claim(snap, me, pid, { projectRoot = null, since = Date.now() - 120000 } = {}) {
+export function claim(snap, me, pid, { projectRoot = null, since = Date.now() - 120000, spawnedBy = null } = {}) {
 	const p = byPid(snap).get(Number(pid));
 	if (!p || !EditorImages.has(p.name)) return { ok: false, reason: `pid ${pid} is not an Unreal Editor process` };
 	if (!me) return { ok: false, reason: 'no Claude Code process above this one - cannot tell whose session this is' };
@@ -301,7 +304,8 @@ export function claim(snap, me, pid, { projectRoot = null, since = Date.now() - 
 	if (prevValid && !agentAlive(snap, prev.owner) && !p.name.includes('-cmd')) {
 		return { ok: false, reason: `pid ${pid} is an ended session's GUI editor - a person may be working in it; not adopted` };
 	}
-	if (!prevValid && !startedByMe(snap, me, p, since)) {
+	const callerStartedIt = spawnedBy != null && ancestry(snap, p.pid).some((a) => a.pid === Number(spawnedBy) && a.pid !== p.pid);
+	if (!prevValid && !callerStartedIt && !startedByMe(snap, me, p, since)) {
 		return { ok: false, reason: `pid ${pid} was not started by this session (its launcher is ${byPid(snap).get(p.ppid)?.name ?? 'unknown'}) - a person's editor is never claimed` };
 	}
 	writeMarker(project, {
@@ -495,6 +499,8 @@ export function selftest() {
 	eq(claim(snap, me, 301).ok, false, 'never claim a person\'s editor (launched from Explorer)');
 	eq(claim(snap, me, 304).ok, false, 'never adopt a GUI orphan');
 	eq(claim(snap, me, 305).ok, true, 'claim an editor my script launched');
+	eq(claim(snap, me, 301, { spawnedBy: 99999 }).ok, false, 'a caller that is not above the editor proves nothing');
+	eq(claim(snap, me, 301, { spawnedBy: 1 }).ok, true, 'an editor the calling script spawned is claimed though the chain to the agent is broken');
 	eq(editors(snap, me).find((e) => e.pid === 305).state, 'mine', 'claimed -> mine');
 	eq(claim(snap, me, 306, { since: T + 306 + 60000 }).ok, false, 'never claim a detached editor started before my call');
 	eq(claim(snap, me, 306, { since: T + 306 - 1000 }).ok, true, 'claim a detached editor started inside my call');

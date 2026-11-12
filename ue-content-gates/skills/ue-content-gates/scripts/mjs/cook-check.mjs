@@ -238,7 +238,9 @@ function main(args) {
 	const runEditor = (commandletArgs, logName, env = {}) => {
 		const log = join(outDir, `${stamp}-${logName}.log`);
 		// Verbatim: `-script="file.py a b"` must reach the engine's parser with the quotes after the `=`.
-		const run = spawnSync(editorCmd, [editorLine(commandletArgs)], { encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 30, windowsVerbatimArguments: true, env: { ...process.env, ...env } });
+		// argv0 quoted by hand: with verbatim arguments node does not quote the program either, and the engine
+		// lives under "Program Files" - the editor would take the second half of that path for its project.
+		const run = spawnSync(editorCmd, [editorLine(commandletArgs)], { argv0: `"${editorCmd}"`, encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 30, windowsVerbatimArguments: true, env: { ...process.env, ...env } });
 		writeFileSync(log, (run.stdout ?? '') + (run.stderr ?? ''));
 		return { status: run.status, log, text: (run.stdout ?? '') + (run.stderr ?? '') };
 	};

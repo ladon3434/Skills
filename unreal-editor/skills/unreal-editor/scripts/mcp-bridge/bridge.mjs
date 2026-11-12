@@ -255,7 +255,7 @@ function claimLaunched(since, pid = null) {
 		pid ? e.pid === pid : e.state === 'human' && sameProject(e.project, Info.project) && e.start != null && e.start >= since - 2000);
 	for (const e of fresh) {
 		if (e.state === 'mine') continue;
-		const r = claim(snap, me, e.pid, { projectRoot: Info.project, since });
+		const r = claim(snap, me, e.pid, { projectRoot: Info.project, since, spawnedBy: process.pid });
 		log(r.ok ? `editor pid ${e.pid} recorded as this session's (Saved/AgentEditors)` : `editor pid ${e.pid} not recorded: ${r.reason}`);
 		if (!r.ok) return false;
 	}

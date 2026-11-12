@@ -161,7 +161,7 @@ for (let i = 0; i < 10 && !recorded; i++) {
 	const s = snapshot();
 	if (!s) continue;
 	if (!s.some((p) => p.pid === pid)) verdict('FAILED', `pid ${pid} exited at once - read ${info.log}`, 1);
-	const r = claim(s, whoAmI(s), pid, { projectRoot: info.project, since });
+	const r = claim(s, whoAmI(s), pid, { projectRoot: info.project, since, spawnedBy: process.pid });
 	if (r.ok) {
 		recorded = true;
 		console.log(`marker  : ${join(info.project, 'Saved', 'AgentEditors', `${pid}.json`)}`);

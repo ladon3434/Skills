@@ -461,7 +461,8 @@ function runInsights(exe, trace, rspPath, logPath, timeoutSec) {
 	// Built verbatim: UE reads -Key="value with spaces" itself, Node's own quoting would wrap the whole argument.
 	const cmd = `-OpenTraceFile="${trace}" -ABSLOG="${logPath}" -AutoQuit -NoUI -ExecOnAnalysisCompleteCmd="@=${fwd(rspPath)}" -log`;
 	const t = Date.now();
-	const r = spawnSync(exe, [cmd], { windowsVerbatimArguments: true, windowsHide: true, timeout: timeoutSec * 1000, stdio: 'ignore' });
+	// argv0 quoted by hand: with verbatim arguments node does not quote the program path either.
+	const r = spawnSync(exe, [cmd], { argv0: `"${exe}"`, windowsVerbatimArguments: true, windowsHide: true, timeout: timeoutSec * 1000, stdio: 'ignore' });
 	const log = read(logPath);
 	return {
 		secs: (Date.now() - t) / 1000,
