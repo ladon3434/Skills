@@ -460,11 +460,16 @@ def walk_packages(*dirs):
                 yield f
 
 
-_MSYS = re.compile(r"^[A-Za-z]:[\\/].*?[\\/]Git[\\/](.+)$")
+_MSYS = re.compile(r"^([A-Za-z]:[\\/](?:[^\\/]+[\\/])*?Git)[\\/](.+)$")
 
 
-def unmangle(arg):
+def unmangle(arg, is_git_root=None):
     """Git Bash rewrites a leading-slash argument (/Game/X -> C:/Program Files/Git/Game/X) before a native
-    program sees it. Undo that for arguments that are meant to be package paths."""
+    program sees it. Undo that for arguments that are meant to be package paths - only when the prefix is a real
+    Git for Windows root (it holds usr/bin/msys-2.0.dll): a project under a folder merely named Git
+    (C:/Users/me/Git/MyGame/Content/A.uasset) is a real path and stays one."""
     m = _MSYS.match(arg)
-    return "/" + m.group(1).replace("\\", "/") if m else arg
+    if not m:
+        return arg
+    is_git_root = is_git_root or (lambda root: (Path(root) / "usr" / "bin" / "msys-2.0.dll").is_file())
+    return "/" + m.group(2).replace("\\", "/") if is_git_root(m.group(1)) else arg

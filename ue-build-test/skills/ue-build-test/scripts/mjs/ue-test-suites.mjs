@@ -34,12 +34,19 @@ export function suitesInText(text) {
 	// Comments out first: a commented-out test is not a test. A wrapper macro is kept on purpose -
 	// `#define MY_TEST(N) IMPLEMENT_SIMPLE_AUTOMATION_TEST(F##N, "Suite." #N, ...)` declares Suite for every use;
 	// one whose path is a macro parameter carries no literal and yields nothing.
-	const code = String(text).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+	const code = stripComments(text);
 	for (const m of code.matchAll(DeclRe)) found.add(m[1]);
 	return [...found];
 }
 
-const stripComments = (text) => String(text).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+// Comments and `#if 0` blocks out: a test that is not compiled is not a test, and its suite in the filter would
+// "run 0 tests" on every full pass. (A function declaration is hoisted, so suitesInText above may call it.)
+function stripComments(text) {
+	return String(text)
+		.replace(/\/\*[\s\S]*?\*\//g, '')
+		.replace(/^[ \t]*\/\/.*$/gm, '')
+		.replace(/^[ \t]*#[ \t]*if[ \t]+0\b[\s\S]*?^[ \t]*#[ \t]*endif\b.*$/gm, '');
+}
 
 /** Suites whose every declaration in the text is a ONE-segment path (`"Solo"`): `StartsWith:Solo` would miss them. Pure. */
 export function oneSegmentSuites(text) {
@@ -154,6 +161,7 @@ export function selftest({ realProject } = {}) {
 	eq(suitesInText('TEST(SmokeTest, "Game.Smoke")'), ['Game'], 'CQTest one-method TEST');
 	eq(suitesInText('IMPLEMENT_SIMPLE_AUTOMATION_TEST(FT, TEXT("Game.Text"), F)'), ['Game'], 'a path inside TEXT()');
 	eq(suitesInText('TEST_METHOD(DoesThing)'), [], 'a TEST_METHOD declares no suite');
+	eq(suitesInText('#if 0\nIMPLEMENT_SIMPLE_AUTOMATION_TEST(FOff, "Disabled.X", F)\n#endif\nIMPLEMENT_SIMPLE_AUTOMATION_TEST(FOn, "Live.X", F)'), ['Live'], 'a test inside #if 0 is not a test');
 	eq(declaresGeneratedDir('TEST_CLASS(InvTests, GenerateTestDirectory)'), true, 'a generated test directory is noticed');
 	eq(declaresGeneratedDir('TEST_CLASS(InvTests, "Game.Inv")'), false, 'a literal directory is not');
 	eq(oneSegmentSuites('IMPLEMENT_COMPLEX_AUTOMATION_TEST(FC, "Solo", F)\nTEST(A, "Game.X")'), ['Solo'], 'a one-segment path is told apart');

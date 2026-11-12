@@ -276,6 +276,13 @@ async function main() {
   a.briefDir = path.dirname(a.brief);
   a.briefText = fs.readFileSync(a.brief, 'utf8');
   if (a.briefText.trim() === '') throw new UsageError('the brief is empty');
+  // The whole brief folder is granted to the voices: it must be a folder made for the brief, not a home, a
+  // downloads folder or a drive root that happens to hold it.
+  const home = os.homedir();
+  const shared = [home, path.join(home, 'Downloads'), path.join(home, 'Desktop'), path.join(home, 'Documents'), os.tmpdir(), path.parse(a.briefDir).root];
+  if (shared.some((d) => path.resolve(d).toLowerCase() === path.resolve(a.briefDir).toLowerCase())) {
+    throw new UsageError(`the brief lies directly in ${a.briefDir} - that whole folder would be readable by the external voices. Put the brief in a folder of its own.`);
+  }
   if (inside(a.briefDir, a.subject)) throw new UsageError('the brief folder must be outside --subject (reports and diffs would show as changes)');
   a.out = path.resolve(a.out || path.join(os.tmpdir(), 'ue-review-voices', stamp()));
   if (inside(a.out, a.subject) || inside(a.out, a.briefDir))
