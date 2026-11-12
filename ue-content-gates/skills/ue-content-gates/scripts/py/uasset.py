@@ -17,6 +17,7 @@ Layout notes (verified against UE 5.8 Engine/Source/Runtime/CoreUObject/Private/
   - Cooked packages (PKG_FilterEditorOnly) and unversioned ones are refused: their layout is not the editor one.
 """
 import mmap
+import os
 import re
 import struct
 import sys
@@ -211,7 +212,7 @@ def _bitarray(r):
 
 def read_package(path, want_assets=True):
     path = Path(path)
-    with open(path, "rb") as fh:
+    with open(long_path(path), "rb") as fh:
         if fh.seek(0, 2) < 32:
             raise PackageError(f"{path}: too small to be a package")
         # A memory map touches only the header pages; reading whole files makes a Content/ sweep IO-bound.
@@ -452,21 +453,34 @@ def file_of(package, mounts):
             rest = package[len(mount):]
             for ext in PACKAGE_EXT:
                 candidate = content / (rest + ext)
-                if candidate.is_file():
+                if os.path.isfile(long_path(candidate)):
                     return candidate
     return None
+
+
+def long_path(path):
+    r"""The path in the \\?\ form on Windows: without it a path of 260+ characters does not open (and is_file()
+    says False), unless the machine has long paths switched on. Other systems get the path back unchanged."""
+    text = os.path.abspath(str(path))
+    if os.name != "nt" or text.startswith("\\\\?\\"):
+        return text
+    return "\\\\?\\UNC\\" + text[2:] if text.startswith("\\\\") else "\\\\?\\" + text
 
 
 def walk_packages(*dirs):
     for d in dirs:
         d = Path(d)
-        if d.is_file():
+        if os.path.isfile(long_path(d)):
             if d.suffix.lower() in PACKAGE_EXT:
                 yield d
             continue
-        for f in d.rglob("*"):
-            if f.suffix.lower() in PACKAGE_EXT and f.is_file():
-                yield f
+        # os.walk over the long form reaches deep folders; the names handed out keep the caller's spelling.
+        root_long = long_path(d)
+        for folder, _subdirs, files in os.walk(root_long):
+            here = d / os.path.relpath(folder, root_long) if folder != root_long else d
+            for name in files:
+                if os.path.splitext(name)[1].lower() in PACKAGE_EXT:
+                    yield here / name
 
 
 _MSYS = re.compile(r"^([A-Za-z]:[\\/](?:[^\\/]+[\\/])*?Git)[\\/](.+)$")
