@@ -70,7 +70,7 @@ def find_config(start):
 def prose_lines(path):
     """(line number, text) outside fenced code."""
     inside = False
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8-sig") as fh:
         for no, line in enumerate(fh, 1):
             if FENCE.match(line):
                 inside = not inside

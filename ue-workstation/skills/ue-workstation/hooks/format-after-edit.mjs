@@ -17,9 +17,10 @@
 import { spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { addContext, readPayload } from './hook-io.mjs';
+import { findProjectRoot } from '../scripts/mjs/ue-owner.mjs';
 
 const CppExt = /\.(h|hh|hpp|hxx|inl|ipp|c|cc|cpp|cxx)$/i;
 // Generated trees, plus vendored ThirdParty code that must keep its own style.
@@ -41,6 +42,10 @@ function main() {
 	const payload = readPayload();
 	const path = payload?.tool_input?.file_path;
 	if (typeof path !== 'string' || !isProjectCpp(path) || !existsSync(path)) return;
+	// Only this project's sources: a file under some other tree's Source/ (the engine, a neighbour repository) keeps
+	// the style it has.
+	const root = findProjectRoot(payload.cwd ?? process.cwd());
+	if (!root || !resolve(path).toLowerCase().startsWith(resolve(root).toLowerCase() + sep)) return;
 	let before;
 	try { before = readFileSync(path); } catch { return; }
 	const [exe, pre] = formatter();

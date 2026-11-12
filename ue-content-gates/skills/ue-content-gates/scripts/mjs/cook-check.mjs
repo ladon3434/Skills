@@ -72,6 +72,8 @@ export function configSlots(text, file) {
 			}
 			continue;
 		}
+		// Not what a cooked game loads: the map the EDITOR opens, and the OLD names of redirects (gone on purpose).
+		if (/^(EditorStartupMap|EditorGameAgnosticStartupMap|\w*Redirects)$/i.test(key)) continue;
 		for (const m of kv[2].matchAll(/\/(?!Script\/|Engine\/)[A-Za-z0-9_]+\/[^"\s,)']+/g)) {
 			const path = m[0];
 			if (!path.slice(path.lastIndexOf('/')).includes('.')) continue;

@@ -176,23 +176,31 @@ try {
 	check(isProjectCpp('C:/P/Intermediate/Source/A.cpp'), false, 'a generated tree is skipped');
 	check(isProjectCpp('C:/P/Source/ThirdParty/lib/a.h'), false, 'vendored ThirdParty is skipped');
 	check(isProjectCpp('C:/P/Source/Game/Game.Build.cs'), false, 'not C++');
-	const src = join(tmp, 'proj', 'Source', 'X.cpp');
+	const src = join(tmp, 'fmtproj', 'Source', 'X.cpp');
 	mkdirSync(dirname(src), { recursive: true });
+	writeFileSync(join(tmp, 'fmtproj', 'P.uproject'), '{}');
+	const fmtCwd = join(tmp, 'fmtproj');
+	mkdirSync(join(tmp, 'proj'), { recursive: true }); // the fixture project of the tests further down
 	const rewriting = join(tmp, 'fmt-rewrite.mjs'), noop = join(tmp, 'fmt-noop.mjs');
 	writeFileSync(rewriting, "import { writeFileSync } from 'node:fs'; writeFileSync(process.argv.at(-1), 'int main() {}\\n');\n");
 	writeFileSync(noop, '// already formatted\n');
 	writeFileSync(src, 'int  main(){}\n');
-	let r = runHook('format-after-edit.mjs', { tool_input: { file_path: src } }, { UE_WS_CLANG_FORMAT: rewriting });
+	let r = runHook('format-after-edit.mjs', { cwd: fmtCwd, tool_input: { file_path: src } }, { UE_WS_CLANG_FORMAT: rewriting });
 	check([r.code, /STALE/.test(r.stdout) && /"additionalContext"/.test(r.stdout)], [0, true], 'formatter rewrote the file -> notice as additionalContext');
 	check(readFileSync(src, 'utf8'), 'int main() {}\n', 'and the file is formatted');
-	r = runHook('format-after-edit.mjs', { tool_input: { file_path: src } }, { UE_WS_CLANG_FORMAT: noop });
+	r = runHook('format-after-edit.mjs', { cwd: fmtCwd, tool_input: { file_path: src } }, { UE_WS_CLANG_FORMAT: noop });
 	check([r.code, r.stdout], [0, ''], 'already formatted -> silent');
-	r = runHook('format-after-edit.mjs', { tool_input: { file_path: src } }, { UE_WS_CLANG_FORMAT: join(tmp, 'no-such-formatter.exe') });
+	r = runHook('format-after-edit.mjs', { cwd: fmtCwd, tool_input: { file_path: src } }, { UE_WS_CLANG_FORMAT: join(tmp, 'no-such-formatter.exe') });
 	check([r.code, r.stdout], [0, ''], 'no formatter -> fails open, silent');
+	const alien = join(tmp, 'elsewhere', 'Source', 'Y.cpp');
+	mkdirSync(dirname(alien), { recursive: true });
+	writeFileSync(alien, 'int  other(){}\n');
+	r = runHook('format-after-edit.mjs', { cwd: fmtCwd, tool_input: { file_path: alien } }, { UE_WS_CLANG_FORMAT: rewriting });
+	check([r.stdout, readFileSync(alien, 'utf8')], ['', 'int  other(){}\n'], 'a source outside this project is left as it is');
 	const argsLog = join(tmp, 'fmt-args.txt'), recording = join(tmp, 'fmt-record.mjs');
 	writeFileSync(recording, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(argsLog)}, JSON.stringify(process.argv.slice(2)));
 `);
-	runHook('format-after-edit.mjs', { tool_input: { file_path: src } }, { UE_WS_CLANG_FORMAT: recording });
+	runHook('format-after-edit.mjs', { cwd: fmtCwd, tool_input: { file_path: src } }, { UE_WS_CLANG_FORMAT: recording });
 	check(JSON.parse(readFileSync(argsLog, 'utf8')).includes('--fallback-style=none'), true, 'no .clang-format -> no LLVM fallback (--fallback-style=none)');
 
 	// ---- project-writes ------------------------------------------------------------------------------------------

@@ -168,6 +168,10 @@ export function judgeRun({ exitCode, run, filter, entries }) {
 	const onlyQuarantineFailed = exitCode !== 0 && run.complete && !cls.failed.length && !cls.incomplete.length && cls.quarantined.length > 0;
 	if (exitCode !== 0 && !onlyQuarantineFailed && !cls.failed.length && !cls.incomplete.length) reasons.push(`the editor exited ${exitCode} with no failing test in the log`);
 	if (missing.length) reasons.push(`0 tests ran for filter token(s): ${missing.join(', ')}`);
+	// The log's own verdict and the process's must agree: an exit code lost on the way (a wrapper, a kill) is not a pass.
+	if (exitCode === 0 && run.complete && run.exitMarker !== null && run.exitMarker !== 0 && !cls.failed.length && !cls.incomplete.length && !cls.quarantined.length) {
+		reasons.push(`the log ends with "TEST COMPLETE. EXIT CODE: ${run.exitMarker}" while the process exited 0`);
+	}
 	// Every selected test skipped or not run: nothing was verified, whatever the exit code says.
 	if (run.complete && cls.passed === 0 && !cls.failed.length && !cls.incomplete.length && !cls.quarantined.length && cls.skipped > 0) {
 		reasons.push(`no test passed: all ${cls.skipped} selected test(s) were skipped or not run`);

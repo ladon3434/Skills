@@ -65,7 +65,7 @@ def scan(base, rules, shown_root):
     for path in sorted(files):
         rel = os.path.relpath(path, shown_root).replace("\\", "/")
         in_fence = False
-        with open(path, encoding="utf-8") as fh:
+        with open(path, encoding="utf-8-sig") as fh:
             for no, line in enumerate(fh, 1):
                 if FENCE.match(line):
                     in_fence = not in_fence

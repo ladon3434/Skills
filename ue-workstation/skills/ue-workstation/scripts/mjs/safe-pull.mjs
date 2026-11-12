@@ -59,6 +59,14 @@ export function safePull(repo, opts = {}, env = process.env) {
 	const probe = editorsOfProject(projectRoot, env);
 	const editor = probe.precise ? describe(probe) : '';
 	if (!probe.precise) log.push('note: the process query failed - cannot tell whether an editor is open; pulling as if none were');
+	// An editor whose command line cannot be read (elevated, another user's) may be this project's.
+	if (!editor && probe.precise && probe.opaque) {
+		const held = incoming.filter((f) => EditorHeld.test(f));
+		if (held.length) {
+			return { code: 1, log: [`REFUSED: ${probe.opaque} editor process(es) do not show their command line - one may be this project's - and ${up.out} changed ${held.length} file(s) an editor holds:`,
+				...held.slice(0, 20).map((f) => `  ${f}`), 'Close that editor (or make sure it belongs to another project), then run safe-pull again.'] };
+		}
+	}
 	if (editor) {
 		// A rebase replays the local commits too: the files they touch are rewritten in the working tree as well.
 		const replayed = opts.rebase ? lines(git(root, 'diff', '--name-only', '@{u}...HEAD').out) : [];

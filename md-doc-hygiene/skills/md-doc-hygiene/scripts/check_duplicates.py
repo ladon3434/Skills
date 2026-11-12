@@ -113,7 +113,7 @@ def collect(base):
             path = os.path.join(root, fn)
             rel = os.path.relpath(path, base).replace('\\', '/')
             infence = in_see_also = False
-            with open(path, encoding='utf-8') as fh:
+            with open(path, encoding='utf-8-sig') as fh:
                 for no, raw in enumerate(fh, 1):
                     if FENCE.match(raw):
                         infence = not infence

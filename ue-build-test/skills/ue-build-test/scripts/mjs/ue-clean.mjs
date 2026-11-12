@@ -12,7 +12,7 @@
 
 import { existsSync, readdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gate } from './ue-gate.mjs';
 import { describeEditors, editorsOfProject } from './ue-proc.mjs';
@@ -21,6 +21,17 @@ import { locateProject, parseArgs } from './ue-tools.mjs';
 export const ProjectDirs = ['Binaries', 'Intermediate', 'DerivedDataCache', '.vs'];
 export const PluginDirs = ['Binaries', 'Intermediate'];
 export const KeptBinaries = 'ThirdParty';
+
+/** Is the real location of `p` inside the real project folder (not reached through a junction or a symlink)? */
+export function insideProject(projectDir, p) {
+	try {
+		const root = realpathSync.native(projectDir).toLowerCase();
+		const real = realpathSync.native(p).toLowerCase();
+		return real === root || real.startsWith(root + sep);
+	} catch {
+		return false;
+	}
+}
 
 /** Every path the clean would delete, for a project folder. Pure over the file system (reads only). */
 export function cleanPlan(projectDir, { saved = false } = {}) {
@@ -38,6 +49,9 @@ export function cleanPlan(projectDir, { saved = false } = {}) {
 		for (const rel of entries) {
 			if (!/\.uplugin$/i.test(rel)) continue;
 			const pdir = join(plugins, dirname(rel));
+			// A plugin linked into Plugins/ by a junction lives elsewhere, maybe shared with another project whose editor
+			// nobody checked: its build trees are not this project's to delete.
+			if (!insideProject(projectDir, pdir)) continue;
 			if (!existsSync(join(pdir, 'Source'))) continue; // binary-only plugin: its Binaries are its content
 			for (const g of PluginDirs) {
 				const p = join(pdir, g);

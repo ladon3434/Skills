@@ -231,17 +231,30 @@ def main(root, fix, forbid_sections, whitespace, require_toc):
         dirs[:] = [x for x in dirs if x not in SKIPPED_DIRS]
         files += [os.path.join(d, n) for n in names if n.endswith('.md')]
 
-    data, heads, blocks = {}, {}, {}
+    # Anchors are kept per FILE (its root-relative path), not per bare name: two index.md in different folders are
+    # two pages. A link names a page by its path or, without one, by its name.
+    page_key = lambda path: os.path.splitext(os.path.relpath(path, root))[0].lower().replace('\\', '/')
+    data, heads, blocks, by_name = {}, {}, {}, {}
     for p in files:
-        key = os.path.splitext(os.path.basename(p))[0].lower()
+        key = page_key(p)
         data[p] = scan(p)
-        heads.setdefault(key, set()).update(data[p][2])
-        blocks.setdefault(key, set()).update(data[p][3])
+        heads[key] = set(data[p][2])
+        blocks[key] = set(data[p][3])
+        by_name.setdefault(key.rsplit('/', 1)[-1], []).append(key)
+
+    def pages(target):
+        """The pages a link target may mean: by path when it has one, else every page of that name."""
+        t = target.strip().lower().replace('\\', '/')
+        if t.endswith('.md'):
+            t = t[:-3]
+        if '/' in t:
+            return [k for k in heads if k == t or k.endswith('/' + t)]
+        return by_name.get(t, [])
 
     bad = 0
     for p in sorted(files):
         rel = os.path.relpath(p, root)
-        me = os.path.splitext(os.path.basename(p))[0].lower()
+        me = page_key(p)
         lines, mask, my_heads, _ = data[p]
 
         problems, changed = check_numbering(lines, mask, fix)
@@ -292,9 +305,9 @@ def main(root, fix, forbid_sections, whitespace, require_toc):
             probe = line.replace('\\|', '|')
 
             for m in XREF_RE.finditer(probe):
-                tgt, anc = m.group(1).strip().lower(), m.group(2).strip()
-                tgt = tgt.rsplit('/', 1)[-1]
-                if tgt in heads and anc not in heads[tgt]:
+                anc = m.group(2).strip()
+                cands = pages(m.group(1))
+                if cands and not any(anc in heads[k] for k in cands):
                     print('[ANC] %s:%d  [[%s#%s]] - no such heading' % (rel, ln, m.group(1), anc))
                     bad += 1
             for m in LOCALREF_RE.finditer(probe):
@@ -302,8 +315,8 @@ def main(root, fix, forbid_sections, whitespace, require_toc):
                     print('[ANC] %s:%d  [[#%s]] - no such heading here' % (rel, ln, m.group(1).strip()))
                     bad += 1
             for m in BLOCKREF_RE.finditer(probe):
-                tgt = (m.group(1).strip().lower().rsplit('/', 1)[-1]) or me
-                if tgt in blocks and m.group(2) not in blocks[tgt]:
+                cands = pages(m.group(1)) if m.group(1).strip() else [me]
+                if cands and not any(m.group(2) in blocks[k] for k in cands):
                     print('[BLK] %s:%d  [[%s#^%s]] - no such block id' % (rel, ln, m.group(1), m.group(2)))
                     bad += 1
 
