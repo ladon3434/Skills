@@ -241,6 +241,9 @@ if (process.platform === 'win32') {
 	].join('\n');
 	r = parseValidationLog(bad);
 	eq(f, [r.finished, r.errors, r.failedBanner, r.warnings.length], [false, ['/Game/A/BP_Door.BP_Door: Mesh is not set'], true, 0], 'failed run: errors deduplicated, the banner is not a finding');
+	r = parseValidationLog(['LogLinker: Error: missing class Foo', 'LogContentValidation: Validated asset counts for 0 validators:'].join('\n'));
+	eq(f, [r.finished, r.errors.length, r.otherErrors, r.validators], [true, 0, ['LogLinker: missing class Foo'], 0], 'an error of another system is kept apart; zero validators is told');
+	eq(f, parseValidationLog('LogDataValidation: Successfully finished running').validators, null, 'no validator count in the log is not zero validators');
 	record('ue-validate-data (DataValidation log)', f);
 }
 

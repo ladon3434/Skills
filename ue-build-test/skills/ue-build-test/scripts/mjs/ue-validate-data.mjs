@@ -31,7 +31,8 @@ export function parseValidationLog(text) {
 	const warnings = [];
 	let finished = false;
 	let failedBanner = false;
-	let validators = 0;
+	let validators = null; // null: the log never said how many validators ran
+	const otherErrors = []; // errors of other systems: they turn exit 0 into exit 1 without a data failure
 	for (const raw of text.split(/\r?\n/)) {
 		const line = raw.replace(/^\[[\d.\-:]+\]\[\s*\d+\]/, '');
 		let m = line.match(/^LogContentValidation: Validated asset counts for (\d+) validators/);
@@ -45,9 +46,14 @@ export function parseValidationLog(text) {
 			continue;
 		}
 		m = line.match(/^(?:AssetCheck|Log(?:Content|Data)Validation): (Error|Warning): (.*)$/);
-		if (m) (m[1] === 'Error' ? errors : warnings).push(m[2].trim());
+		if (m) {
+			(m[1] === 'Error' ? errors : warnings).push(m[2].trim());
+			continue;
+		}
+		m = line.match(/^(Log\w+): Error: (.*)$/);
+		if (m) otherErrors.push(`${m[1]}: ${m[2].trim()}`);
 	}
-	return { errors: [...new Set(errors)], warnings: [...new Set(warnings)], finished, failedBanner, validators };
+	return { errors: [...new Set(errors)], warnings: [...new Set(warnings)], otherErrors: [...new Set(otherErrors)], finished, failedBanner, validators };
 }
 
 async function main() {
@@ -147,12 +153,16 @@ async function main() {
 	console.log(`Commandlet exit ${code ?? 'timeout'}, ${seconds}s; validator errors ${log.errors.length}, warnings ${log.warnings.length}`);
 	for (const e of log.errors.slice(0, 40)) console.log(`ERROR   ${e.slice(0, 220)}`);
 	for (const w of log.warnings.slice(0, 20)) console.log(`WARNING ${w.slice(0, 220)}`);
+	if (log.finished && log.validators === 0) console.log('WARNING: the log counts 0 validators - nothing was checked; a green verdict here says nothing about the data.');
 	if (code === 0 && log.finished) {
 		console.log('Project data is valid.');
 		exitWith(Kind, Verdict.Ok, 0);
 	}
 	if (code === 1 && log.finished && !log.errors.length) {
-		console.log('Data validation passed; exit 1 comes from an error another system logged during the run - read the log, it is not a data failure.');
+		console.log('Data validation passed; exit 1 comes from an error another system logged during the run - it is not a data failure:');
+		for (const e of log.otherErrors.slice(0, 10)) console.log(`OTHER   ${e.slice(0, 220)}`);
+		if (log.otherErrors.length > 10) console.log(`        ... and ${log.otherErrors.length - 10} more`);
+		console.log(`Full log: ${logPath}`);
 		exitWith(Kind, Verdict.Ok, 0);
 	}
 	if (code === 2 || log.failedBanner) console.log('Data validation found errors.');

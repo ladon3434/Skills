@@ -32,7 +32,8 @@ import {
 	portOwner, pruneMarkers, snapshot, uprojectOfCmd, whoAmI,
 } from '../scripts/mjs/ue-owner.mjs';
 
-const StateDir = join(tmpdir(), 'ue-editor-guard');
+// UE_GUARD_STATE_DIR moves the state folder: the tests keep theirs apart from the live one.
+const StateDir = process.env.UE_GUARD_STATE_DIR || join(tmpdir(), 'ue-editor-guard');
 
 /**
  * PURE: a statement without the wrappers a command can stand behind — `cmd /c`, `powershell -Command`, `bash -c`,

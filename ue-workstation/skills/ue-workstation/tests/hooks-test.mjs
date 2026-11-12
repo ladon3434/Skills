@@ -31,7 +31,7 @@ const check = (got, want, label) => {
 function runHook(name, payload, env = {}) {
 	const input = typeof payload === 'string' ? payload : JSON.stringify(payload);
 	const r = spawnSync(process.execPath, [join(Hooks, name)], {
-		input, encoding: 'utf8', windowsHide: true, env: { ...process.env, ...env },
+		input, encoding: 'utf8', windowsHide: true, env: { ...process.env, UE_GUARD_STATE_DIR: join(tmp, 'guard-state'), ...env },
 	});
 	return { code: r.status, stdout: r.stdout, stderr: r.stderr };
 }
@@ -441,15 +441,15 @@ try {
 	check(pre('"C:\\UE\\Build.bat" GEditor Win64 Development').code, 2, 'editor build while the project\'s editor runs -> blocked');
 	check(pre('"C:\\UE\\Build.bat" FEditor Win64 Development', free).code, 0, 'editor build of a project without an editor passes');
 	check(pre('git status').code, 0, 'an unrelated command passes');
-	rmSync(join(tmpdir(), 'ue-editor-guard', 'port-18777.json'), { force: true });
+	rmSync(join(tmp, 'guard-state', 'port-18777.json'), { force: true });
 	const mcp = (env) => runHook('editor-guard.mjs', { hook_event_name: 'PreToolUse', tool_name: 'mcp__unreal-mcp__call_tool', cwd: gp, tool_input: {} }, env);
 	check(mcp(guardFixture({ 18777: 502 })).code, 2, 'MCP port answered by another project\'s editor -> blocked');
-	rmSync(join(tmpdir(), 'ue-editor-guard', 'port-18777.json'), { force: true });
+	rmSync(join(tmp, 'guard-state', 'port-18777.json'), { force: true });
 	check(mcp(guardFixture({ 18777: 501 })).code, 0, 'MCP port answered by this project\'s editor passes');
-	rmSync(join(tmpdir(), 'ue-editor-guard', 'port-18777.json'), { force: true });
+	rmSync(join(tmp, 'guard-state', 'port-18777.json'), { force: true });
 	const toolset = runHook('editor-guard.mjs', { hook_event_name: 'PreToolUse', tool_name: 'mcp__unreal-mcp__call_tool', cwd: gp, tool_input: {} }, guardFixture({ 18777: 501 }));
 	check([toolset.code, /"permissionDecision"/.test(toolset.stdout)], [0, false], 'a toolset call into a person\'s editor of this project is not asked about');
-	rmSync(join(tmpdir(), 'ue-editor-guard', 'port-18777.json'), { force: true });
+	rmSync(join(tmp, 'guard-state', 'port-18777.json'), { force: true });
 	r = runHook('editor-guard.mjs', { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_use_id: 'never-seen', cwd: gp, tool_input: { command: 'ls' } }, env0);
 	check([r.code, r.stdout], [0, ''], 'PostToolUse without a PreToolUse record is silent');
 
