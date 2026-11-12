@@ -24,7 +24,7 @@ Paths are relative to the skill folder `skills/unreal-editor/`; `.claude-plugin/
 | --- | --- |
 | `SKILL.md` | ownership rule (short; the canon is in `ue-workstation`), the two channels, port, launch, C++→check loop with Live Coding, modals, dirty packages, Python and PIE in brief, Agent Skills, log |
 | `references/epic-mcp-toolsets.md` | enabling Epic's server, ports and projects, modes, call conventions, concurrency, screenshots, moves, toolset map, your own toolset (Python or C++), Agent Skills, security, after an engine update (Epic's `unreal_mcp_proxy`) |
-| `references/toolsets/*.json` | `describe_toolset` snapshots, UE 5.8.3 CL 58210709, Epic's toolsets only (54, with `LiveCodingToolset`) |
+| `scripts/dump-toolset-schemas.cmd` | `describe_toolset` snapshots of Epic's toolsets: dumped from a warm editor into the user's folder (`--where`), never shipped — they are Epic's text; `--check` warns when the engine has moved on |
 | `references/content-pitfalls.md` | content traps "symptom → cause → cure": saving, references, Blueprint graphs, Python in PIE, materials, meshes, animation, Niagara, levels, UMG |
 | `references/python-in-editor.md` | how Python reaches the editor (Remote Execution, verified behaviour), Python mines, wrappers that differ from C++, inspecting and driving a live PIE |
 | `references/mcp-bridge.md` | lazy bridge: why, install, flags, launch guard |

@@ -1,18 +1,24 @@
 # Epic's MCP server and toolsets (`unreal-mcp`) — field guide
 
 Read when a task goes through Epic's stock server (`ModelContextProtocol` + toolsets). Python with `import unreal`
-goes past it, through Python Remote Execution (the skill's "Python in the editor"). Jump to the section you need. Per-tool argument schemas are snapshotted in
-[`toolsets/`](toolsets/) — one file per `describe_toolset`, stamped with the engine version in
-`toolsets/index.json` (UE 5.8.3, CL 58210709; Epic toolsets only). Read the snapshot first and pull one
-signature with `jq`; go live with `describe_toolset` when the snapshot looks stale — its stamp differs from
-`Engine/Build/Build.version`, a toolset plugin changed, or a schema error / suspicious miss.
+goes past it, through Python Remote Execution (the skill's "Python in the editor"). Jump to the section you need. Per-tool argument schemas are
+snapshotted **on this machine, not shipped with the plugin** (they are Epic's text): one file per `describe_toolset`
+in the user's folder, stamped with the engine version in its `index.json` (Epic toolsets only). Where it is and
+whether it exists:
 
 ```bash
+DIR=$(node <skill>/scripts/mjs/dump-toolset-schemas.mjs --where)   # the path; exit 1 + a warning when nothing is dumped yet
 jq -r '.schema | fromjson | .tools[] | select(.name|endswith(".save_assets")) | .inputSchema' \
-   <skill>/references/toolsets/editor_toolset.toolsets.asset.AssetTools.json
+   "$DIR/editor_toolset.toolsets.asset.AssetTools.json"
 ```
 
-Refresh after an engine update (warm editor, minutes): `<skill>/scripts/dump-toolset-schemas.cmd`. It drops every
+Read the snapshot first and pull one signature with `jq`. **No snapshots yet** (`--where` exits 1): say so, ask the
+editor itself (`list_toolsets` / `describe_toolset`), and dump them when a warm editor is at hand. Go live with
+`describe_toolset` as well when the snapshot looks stale — `dump-toolset-schemas.cmd --check` warns when its stamp
+differs from `Engine/Build/Build.version` — or after a schema error / suspicious miss.
+
+Dump or refresh (warm editor, minutes): `<skill>/scripts/dump-toolset-schemas.cmd`; the folder is
+`UE_TOOLSET_SCHEMAS`, else `<Claude config dir>/unreal-editor/toolsets`. It drops every
 toolset the project or a third-party plugin registers (module or python package found under the project's
 `Source/` or `Plugins/`), so the set stays Epic-only; `--check` asserts that offline.
 

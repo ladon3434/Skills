@@ -1,4 +1,8 @@
-// dump-toolset-schemas.mjs — keep the Epic toolset schema snapshots (references/toolsets/) in step with the engine.
+// dump-toolset-schemas.mjs — the Epic toolset schema snapshots of THIS machine, in step with its engine.
+//
+// The snapshots are Epic's text (tool names, descriptions, parameters out of the engine's source) and are not
+// shipped with the plugin: they are dumped from a live editor into the user's own folder -
+// UE_TOOLSET_SCHEMAS, else <Claude config dir>/unreal-editor/toolsets - and read from there.
 //
 // Why: one describe_toolset answer is tens of KB, and Epic's toolset schemas change only with the engine, so an agent
 // reads the dated snapshot (`jq` one signature) instead of describing toolsets live every session.
@@ -8,6 +12,7 @@
 //   node dump-toolset-schemas.mjs [--url URL] [--project DIR] [--out DIR] [--exclude REGEX]   live: needs a WARM editor
 //   node dump-toolset-schemas.mjs --from SRCDIR [--project DIR] [--out DIR] [--exclude REGEX] offline: re-filter a set
 //   node dump-toolset-schemas.mjs --check [DIR] [--project DIR] [--exclude REGEX]             offline: assert the set
+//   node dump-toolset-schemas.mjs --where                                                     the folder (stdout) and what it holds (stderr); exit 1 when nothing is dumped yet
 //   node dump-toolset-schemas.mjs --selftest
 //
 // A toolset is project/third-party when its first name segment (the C++ module or python package that registers it,
@@ -17,14 +22,17 @@
 
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findProjectUproject, resolveEngine } from './ue-engine.mjs';
 import { projectInfo } from './ue-project.mjs';
 
 const SkillDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const DefaultOut = join(SkillDir, 'references', 'toolsets');
+const DefaultOut = process.env.UE_TOOLSET_SCHEMAS
+	? resolve(process.env.UE_TOOLSET_SCHEMAS)
+	: join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'unreal-editor', 'toolsets');
+const NotDumped = `no toolset snapshots on this machine yet (${DefaultOut}). They are not shipped with the plugin; dump them once from a warm editor of a project with Epic's MCP plugin: <skill>/scripts/dump-toolset-schemas.cmd (minutes). Until then ask the editor itself: list_toolsets / describe_toolset.`;
 
 // --- which toolsets belong to the project ---------------------------------------------------------------------
 
@@ -326,8 +334,9 @@ function selftest() {
 const Usage = `usage: node dump-toolset-schemas.mjs [--url URL] [--project DIR] [--out DIR] [--exclude REGEX]   (live, warm editor)
        node dump-toolset-schemas.mjs --from SRCDIR [--project DIR] [--out DIR] [--exclude REGEX]
        node dump-toolset-schemas.mjs --check [DIR] [--project DIR] [--exclude REGEX]
+       node dump-toolset-schemas.mjs --where        the folder of the snapshots; exit 1 when nothing is dumped yet
        node dump-toolset-schemas.mjs --selftest
-Default --out / --check DIR: ${DefaultOut}`;
+Default --out / --check DIR: ${DefaultOut}  (UE_TOOLSET_SCHEMAS overrides)`;
 
 async function main(argv) {
 	const at = (f) => {
@@ -339,6 +348,21 @@ async function main(argv) {
 		return 0;
 	}
 	if (argv.includes('--selftest')) return selftest();
+	if (argv.includes('--where')) {
+		console.log(DefaultOut); // stdout is the path alone: DIR=$(node dump-toolset-schemas.mjs --where)
+		let index = null;
+		try {
+			index = JSON.parse(readFileSync(join(DefaultOut, 'index.json'), 'utf8'));
+		} catch {
+			/* nothing dumped */
+		}
+		if (!index) {
+			console.error(`WARNING: ${NotDumped}`);
+			return 1;
+		}
+		console.error(`${index.toolsets?.length ?? 0} toolsets of UE ${index.version} CL ${index.changelist}, dumped ${index.dumpedAt ?? '?'}`);
+		return 0;
+	}
 	const projectArg = at('--project');
 	const uproject = projectArg ? (projectArg.toLowerCase().endsWith('.uproject') ? resolve(projectArg) : findProjectUproject(resolve(projectArg))) : findProjectUproject();
 	const root = uproject ? dirname(uproject) : null;
@@ -346,6 +370,10 @@ async function main(argv) {
 	if (argv.includes('--check')) {
 		const next = at('--check');
 		const dir = next && !next.startsWith('--') ? resolve(next) : DefaultOut;
+		if (dir === DefaultOut && !existsSync(join(dir, 'index.json'))) {
+			console.log(`check: ${NotDumped}`);
+			return 0; // nothing to assert: a machine without snapshots is a state, not a defect
+		}
 		const problems = checkSet(dir, keepWhy);
 		if (problems.length) {
 			console.log(`check FAILED for ${dir}:\n  ${problems.join('\n  ')}`);

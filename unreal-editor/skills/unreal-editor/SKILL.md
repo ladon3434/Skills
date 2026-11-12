@@ -50,7 +50,7 @@ Two channels into one editor, both Epic's own:
 | --- | --- | --- |
 | Needs | `ModelContextProtocol` + `AllToolsets` in `.uproject` | `PythonScriptPlugin` (comes with `ModelContextProtocol`) + Remote Execution on |
 | Reached by | native `mcp__<server>__call_tool`, or `ue.py --call` | `python <skill>/scripts/ue.py < code` |
-| Good for | typed reads and edits, screenshots, PIE, tests, logs — schemas in `<skill>/references/toolsets/` | anything `import unreal` can do in one pass: live PIE inspection, bulk edits, what no toolset covers |
+| Good for | typed reads and edits, screenshots, PIE, tests, logs — schemas in the local snapshot folder (`dump-toolset-schemas.cmd --where`) | anything `import unreal` can do in one pass: live PIE inspection, bulk edits, what no toolset covers |
 | Saves by itself | nothing | nothing |
 
 Remote Execution is off by default. An editor started by `ue-launch-editor` or the lazy bridge has it on (a
@@ -207,7 +207,8 @@ disconnected until the session ends. Two ways out:
 
 - Almost everything — through toolsets: `references/epic-mcp-toolsets.md` (calls, conventions,
   screenshots, asset moves, state description, toolset map), schemas — `jq` over
-  `references/toolsets/*.json`.
+  the local snapshots (`scripts/dump-toolset-schemas.cmd --where` prints the folder, or warns that none is dumped
+  yet — then `describe_toolset` live).
 - Several toolset calls at once — `ProgrammaticToolset` (stdlib, no `unreal`; an error of
   any tool aborts the whole script — guard with `exists()`), or one Python pass.
 - `import unreal` — Python (next section); with this project's editor closed, a headless commandlet:
@@ -338,8 +339,9 @@ that nothing references may be deleted by anyone.
 - `references/epic-mcp-toolsets.md` — Epic's server and toolsets: enabling, modes, calls, concurrency,
   screenshots, moves, toolset map, extending with your own toolset (C++ or Python), Agent Skills, security,
   what to recheck after an engine update.
-- `references/toolsets/` — schema snapshots of Epic's toolsets (UE 5.8.3); refresh after an
-  engine update — `scripts/dump-toolset-schemas.cmd` (warm editor).
+- Schema snapshots of Epic's toolsets — not shipped (Epic's text): dumped once per machine from a warm editor with
+  `scripts/dump-toolset-schemas.cmd` into `<Claude config dir>/unreal-editor/toolsets` (`--where` prints the
+  folder and warns when it is empty; `--check` warns when the engine has moved on). Dump again after an engine update.
 - `references/content-pitfalls.md` — content traps "symptom → cause → cure":
   saving, packages and references, Blueprint graphs, Python in the editor and in PIE, materials, meshes,
   animation, Niagara, levels, UMG. Search by the symptom's words, do not read it whole.
