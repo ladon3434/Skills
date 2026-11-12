@@ -185,6 +185,17 @@ export function binariesStale(tools) {
 }
 
 /**
+ * Undoes Git Bash's path conversion in one argument. Bash rewrites anything that looks like a POSIX path before a
+ * Windows program sees it: `/Game/ThirdParty` and `-IgnoreFolder=/Game/ThirdParty` arrive as
+ * `C:/Program Files/Git/Game/ThirdParty`. The prefix is taken off only when it is a real Git for Windows root
+ * (it holds usr/bin/msys-2.0.dll), so a project that merely lives under a folder named Git is left alone.
+ */
+export function unmsys(arg, exists = existsSync) {
+	return String(arg).replace(/([A-Za-z]:[\\/](?:[^\\/;,=]+[\\/])*?Git)[\\/](?=[A-Za-z_]\w*(?:[\\/.,]|$))/g, (all, root) =>
+		(exists(join(root, 'usr', 'bin', 'msys-2.0.dll')) ? '/' : all));
+}
+
+/**
  * `--name value` / `--flag` parser shared by the entry points. An unknown `--flag` is a usage error (exit 2): a
  * mistyped `--dryrun` must not run the real thing. Single-dash switches (`-DisableUnity`: the engine's spelling) and
  * everything after `--` land in `rest` for the entry points that pass them on; with `strict` they and positional

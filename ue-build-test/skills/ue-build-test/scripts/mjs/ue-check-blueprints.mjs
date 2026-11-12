@@ -24,7 +24,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exitWith, gate, gatePlan, renderCommand, Verdict } from './ue-gate.mjs';
 import { editorsOfProject } from './ue-proc.mjs';
-import { binariesStale, parseArgs, resolveTools } from './ue-tools.mjs';
+import { binariesStale, parseArgs, resolveTools, unmsys } from './ue-tools.mjs';
 
 const Kind = 'blueprints';
 // The specifier list may nest parentheses one level: UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent)).
@@ -221,7 +221,7 @@ async function main() {
 		'-nosound',
 		'-SCCProvider=None',
 		`-ABSLOG=${logPath}`,
-		...args.rest, // e.g. -IgnoreFolder=/Game/ThirdParty,/Game/Demo (the commandlet's own switches)
+		...args.rest.map(unmsys), // e.g. -IgnoreFolder=/Game/ThirdParty,/Game/Demo (the commandlet's own switches)
 	];
 
 	const blockers = [];

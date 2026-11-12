@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exitWith, gate, gatePlan, renderCommand, Verdict } from './ue-gate.mjs';
 import { editorsOfProject } from './ue-proc.mjs';
-import { binariesStale, parseArgs, resolveTools } from './ue-tools.mjs';
+import { binariesStale, parseArgs, resolveTools, unmsys } from './ue-tools.mjs';
 
 const Kind = 'validation';
 
@@ -82,7 +82,7 @@ async function main() {
 	const editorArgs = [
 		tools.project,
 		'-run=DataValidation',
-		...(args['asset-type'] ? [`-AssetType=${args['asset-type']}`] : []),
+		...(args['asset-type'] ? [`-AssetType=${unmsys(args['asset-type'])}`] : []),
 		'-unattended',
 		'-nopause',
 		'-nosplash',
@@ -91,7 +91,7 @@ async function main() {
 		'-NoShaderCompile',
 		'-SCCProvider=None',
 		`-ABSLOG=${logPath}`,
-		...args.rest,
+		...args.rest.map(unmsys),
 	];
 
 	console.log(`Project : ${tools.project}`);

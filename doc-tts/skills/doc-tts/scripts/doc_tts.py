@@ -229,7 +229,12 @@ def upload(clip: Path) -> str:
 
 def run_graph(graph, label):
     """Queue a graph, wait for it, return the bytes and extension of its first audio output."""
-    reply = http_json("/prompt", json.dumps({"prompt": graph, "client_id": "doc-tts"}).encode())
+    try:
+        reply = http_json("/prompt", json.dumps({"prompt": graph, "client_id": "doc-tts"}).encode())
+    except urllib.error.HTTPError as e:
+        # The stand refused the graph (a renamed model variant, a missing node, no CUDA): its own words say which.
+        body = e.read().decode("utf-8", "replace")[:1200]
+        die(f"{label}: the stand refused the job (HTTP {e.code}): {body}", 1)
     pid, started = reply["prompt_id"], time.time()
     while True:
         time.sleep(1)

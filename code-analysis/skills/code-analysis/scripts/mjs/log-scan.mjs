@@ -265,4 +265,38 @@ function main(argv) {
 	process.exit(total ? 1 : unreadable ? 2 : 0);
 }
 
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main(process.argv.slice(2));
+/** Offline checks of the pure parts: kinds, repeats, encodings. Returns the exit code. */
+function selftest() {
+	let failed = 0;
+	const eq = (got, want, what) => {
+		if (JSON.stringify(got) !== JSON.stringify(want)) {
+			failed++;
+			console.log(`  FAIL ${what}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+		}
+	};
+	const kinds = (text) => scanText(text).map((h) => h.kind);
+	eq(classify('LogCook: Error: something broke'), 'error', 'an Error: line');
+	eq(classify('LogInit: Display: all fine'), null, 'a Display line is nothing');
+	eq(classify('A.cpp(12): error C2065: x: undeclared identifier'), 'compile', 'an MSVC compile error');
+	eq(classify('foo.obj : error LNK2019: unresolved external symbol'), 'compile', 'a linker error');
+	eq(classify('A.cpp:12:5: error: use of undeclared identifier'), 'compile', 'a clang error');
+	eq(classify('ERROR: Cook failed.'), 'error', "UAT's upper-case ERROR:");
+	eq(classify('LogScript: Warning: Accessed None trying to read property X'), 'accessed-none', 'Accessed None wins over the blueprint kind');
+	eq(classify('Fatal error: [File:Unknown] [Line: 1]'), 'fatal', 'a fatal error');
+	eq(kinds('LogA: Error: one\nLogA: Error: one\nLogB: Error: two\n').length, 2, 'a repeated line is one distinct hit');
+	eq(scanText('LogA: Error: one\nLogA: Error: one\n')[0].repeats, 2, 'and carries its count');
+	const sample = 'LogCook: Error: something broke\r\nLogInit: Display: fine\r\n';
+	const utf16 = Buffer.from(sample, 'utf16le');
+	eq(kinds(decodeLog(Buffer.from(sample, 'utf8'))), ['error'], 'UTF-8');
+	eq(kinds(decodeLog(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(sample, 'utf8')]))), ['error'], 'UTF-8 with a BOM');
+	eq(kinds(decodeLog(Buffer.concat([Buffer.from([0xff, 0xfe]), utf16]))), ['error'], 'UTF-16 LE with a BOM (PowerShell 5.1 redirection)');
+	eq(kinds(decodeLog(utf16)), ['error'], 'UTF-16 LE without a BOM');
+	eq(kinds(decodeLog(Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(utf16).swap16()]))), ['error'], 'UTF-16 BE with a BOM');
+	console.log(failed ? `log-scan selftest: ${failed} FAILED` : 'log-scan selftest: ok');
+	return failed ? 1 : 0;
+}
+
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+	if (process.argv.includes('--selftest')) process.exit(selftest());
+	main(process.argv.slice(2));
+}

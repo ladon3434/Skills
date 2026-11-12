@@ -235,9 +235,16 @@ def main(root, fix, forbid_sections, whitespace, require_toc):
     # two pages. A link names a page by its path or, without one, by its name.
     page_key = lambda path: os.path.splitext(os.path.relpath(path, root))[0].lower().replace('\\', '/')
     data, heads, blocks, by_name = {}, {}, {}, {}
-    for p in files:
+    unread = []
+    for p in list(files):
         key = page_key(p)
-        data[p] = scan(p)
+        try:
+            data[p] = scan(p)
+        except (OSError, UnicodeDecodeError) as e:
+            # Not UTF-8 (or locked): reported as a problem of that file, not a traceback for the whole run.
+            unread.append('[READ] %s - %s' % (os.path.relpath(p, root), e))
+            files.remove(p)
+            continue
         heads[key] = set(data[p][2])
         blocks[key] = set(data[p][3])
         by_name.setdefault(key.rsplit('/', 1)[-1], []).append(key)
@@ -251,7 +258,9 @@ def main(root, fix, forbid_sections, whitespace, require_toc):
             return [k for k in heads if k == t or k.endswith('/' + t)]
         return by_name.get(t, [])
 
-    bad = 0
+    bad = len(unread)
+    for line in unread:
+        print(line)
     for p in sorted(files):
         rel = os.path.relpath(p, root)
         me = page_key(p)
@@ -341,7 +350,7 @@ def main(root, fix, forbid_sections, whitespace, require_toc):
               if fix else 'Run with --fix to renumber lists and rebuild tables of contents '
                           '(other references are never rewritten).')
         return 1
-    if not files:
+    if not files and not bad:
         print('[FAILED] no .md file under %s - a wrong folder; nothing was checked.' % root)
         return 2
     print('[SUCCESS] Numbering, headings, anchors, tables and tables of contents are clean (%d file(s)).' % len(files))

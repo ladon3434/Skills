@@ -9,8 +9,8 @@
 //
 //   node capture-widget.mjs --asset /Game/UI/WBP_X.WBP_X --out <dir> [--url URL | --project DIR]
 
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { connect, findImages, returnValue, serverUrl } from './mcp-http.mjs';
 
 const Usage = 'usage: node capture-widget.mjs --asset /Game/.../WBP_X.WBP_X --out <dir> [--url URL | --project DIR]';
@@ -30,7 +30,9 @@ async function main(argv) {
 		console.log(Usage);
 		return 0;
 	}
-	const assetPath = at('--asset');
+	// Git Bash rewrites `/Game/UI/WBP_X.WBP_X` into `C:/Program Files/Git/Game/UI/WBP_X.WBP_X` before node sees it:
+	// take a real Git for Windows root back off.
+	const assetPath = at('--asset')?.replace(/^([A-Za-z]:[\\/](?:[^\\/]+[\\/])*?Git)[\\/]/, (all, root) => (existsSync(join(root, 'usr', 'bin', 'msys-2.0.dll')) ? '/' : all));
 	const outDir = at('--out');
 	if (!assetPath || !outDir) {
 		console.log(Usage);
