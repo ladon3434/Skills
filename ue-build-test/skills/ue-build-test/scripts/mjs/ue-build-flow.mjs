@@ -24,6 +24,7 @@ const Spec = {
 	target: {},
 	config: {},
 	wait: { default: '600' },
+	timeout: { default: '180' },
 	'dry-run': { type: 'bool' },
 	help: { type: 'bool' },
 };
@@ -89,7 +90,7 @@ export function buildSteps(mode, tools, { target, config, extra = [], files = []
 function usage(mode) {
 	const name = { compile: 'ue-compile', rebuild: 'ue-rebuild', 'game-build': 'ue-game-build' }[mode.kind];
 	const files = mode.kind === 'compile' ? ' [<file.cpp|file.h> ...]' : '';
-	console.log(`usage: ${name}.cmd${files} [--project <file.uproject|dir>] [--target <Name>] [--config <Cfg>] [--wait <s>] [--dry-run] [-- <extra UBT args>]`);
+	console.log(`usage: ${name}.cmd${files} [--project <file.uproject|dir>] [--target <Name>] [--config <Cfg>] [--wait <s>] [--timeout <min>] [--dry-run] [-- <extra UBT args>]`);
 	if (files) console.log('  files    compile only these (no link); a header also recompiles the .cpp files that include it');
 	console.log(`  target default: the project's ${mode.targetType} target (Source/*.Target.cs); config default: ${mode.config}`);
 	console.log('  --wait   seconds to wait for a build or an editor that is not ours (default 600)');
@@ -188,15 +189,18 @@ export async function runBuild(modeName, argv) {
 		exitWith(kind, Verdict.Deferred, 1);
 	}
 
+	const timeoutMin = Number(args.timeout) > 0 ? Number(args.timeout) : 180;
 	const started = Date.now();
 	let output = '';
 	let status = 0;
 	for (const s of steps) {
 		console.log('');
 		console.log(`---- ${s.label}: ${renderCommand(s.file, s.args, { bat: true })}`);
-		const r = await runStreaming(s.file, s.args, { bat: true });
+		const r = await runStreaming(s.file, s.args, { bat: true, timeoutMs: timeoutMin * 60000 });
 		output += r.output;
 		status = r.status;
+		if (r.timedOut) console.log(`
+ERROR: ${s.label} did not finish in ${timeoutMin} min - its process tree was killed. A hung UnrealBuildTool usually waits on another build (-WaitMutex); a real build that needs longer: --timeout <minutes>.`);
 		if (status !== 0) break;
 	}
 	const seconds = Math.round((Date.now() - started) / 1000);

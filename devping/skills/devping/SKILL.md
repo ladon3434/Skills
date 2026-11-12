@@ -57,6 +57,6 @@ Hide the folder when it is a code name not announced yet; hide the machine when 
 Without an argument `devping show` prints the current title. An unknown value set by hand counts as `all`.
 
 A topic set by `connect` is seen at once (the hook reads the registry). The hook is silent on failures; to look into
-one — `DEVPING_DEBUG=1`; another ntfy server — `DEVPING_URL`. The topic works like a password: whoever knows it reads
+one — `DEVPING_DEBUG=1`; another ntfy server — `DEVPING_URL` (https; `DEVPING_TOKEN` — its access token, when it has access control). The topic works like a password: whoever knows it reads
 the pings. Never write it anywhere public. Tests: `python <skill>/scripts/tests/pingtest.py` (a local fake ntfy and
 registry, nothing on the machine is touched).

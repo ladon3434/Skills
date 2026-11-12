@@ -72,8 +72,9 @@ export function runBat(batPath, args = [], options = {}) {
  * Runs a .bat or an .exe, echoing its output live AND keeping it for diagnosis.
  * @returns {Promise<{status: number, output: string}>}
  */
-export function runStreaming(file, args = [], { bat = false, env } = {}) {
+export function runStreaming(file, args = [], { bat = false, env, timeoutMs = 0 } = {}) {
 	return new Promise((resolvePromise) => {
+		let timedOut = false;
 		const child =
 			bat && IsWindows
 				? spawn('cmd.exe', ['/d', '/s', '/c', winCommandLine(file, args)], { windowsHide: true, windowsVerbatimArguments: true, env })
@@ -89,7 +90,16 @@ export function runStreaming(file, args = [], { bat = false, env } = {}) {
 		child.on('error', (e) => {
 			chunks.push(Buffer.from(`\nspawn error: ${e.message}\n`));
 		});
-		child.on('close', (code) => resolvePromise({ status: code ?? 1, output: Buffer.concat(chunks).toString('utf8') }));
+		// A bound for a step that hangs (UBT waiting on a mutex forever): the whole tree goes, not only cmd.exe.
+		const timer = timeoutMs > 0 ? setTimeout(() => {
+			timedOut = true;
+			if (IsWindows) spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+			else child.kill('SIGKILL');
+		}, timeoutMs) : null;
+		child.on('close', (code) => {
+			if (timer) clearTimeout(timer);
+			resolvePromise({ status: timedOut ? 1 : (code ?? 1), output: Buffer.concat(chunks).toString('utf8'), timedOut });
+		});
 	});
 }
 

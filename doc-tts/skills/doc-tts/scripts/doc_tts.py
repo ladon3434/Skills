@@ -60,6 +60,11 @@ def clean_markdown(md: str) -> str:
     t = md.replace("\r\n", "\n")
     t = re.sub(r"^---\n.*?\n---\n", "", t, flags=re.DOTALL)      # YAML frontmatter
     t = re.sub(r"```.*?```", "", t, flags=re.DOTALL)             # code blocks
+    t = re.sub(r"~~~.*?~~~", "", t, flags=re.DOTALL)             # ... and the ~~~ kind
+    t = re.sub(r"<!--.*?-->", "", t, flags=re.DOTALL)            # HTML comments are not for the listener
+    t = re.sub(r"%%.*?%%", "", t, flags=re.DOTALL)               # nor Obsidian's %%comments%%
+    t = re.sub(r"!\[\[[^\]]*\]\]", "", t)                        # an embed is another document, not a word
+    t = re.sub(r"(?:^|[ \t])\^[A-Za-z0-9-]+[ \t]*$", "", t, flags=re.MULTILINE)  # block ids (^t-term)
     t = re.sub(r"`([^`]*)`", r"\1", t)                           # inline code
     t = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", t)              # images -> alt text
     t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)               # links -> text
@@ -84,7 +89,7 @@ def clean_markdown(md: str) -> str:
     # tables: drop separator rows, join cells with commas
     out_lines = []
     for ln in t.split("\n"):
-        if "|" in ln and re.match(r"^\s*\|?\s*:?-{2,}", ln):
+        if "|" in ln and re.match(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$", ln):   # | - | :--: | ---: |
             continue
         if "|" in ln:
             ln = ", ".join(c.strip() for c in ln.split("|") if c.strip())

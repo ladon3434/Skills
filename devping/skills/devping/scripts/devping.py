@@ -241,8 +241,11 @@ def server_url():
 def publish(topic, title, message, priority, tag):
     body = json.dumps({"topic": topic, "title": title, "message": message,
                        "priority": priority, "tags": [tag]}).encode("utf-8")
-    req = urllib.request.Request(server_url() + "/", data=body, method="POST",
-                                 headers={"Content-Type": "application/json"})
+    headers = {"Content-Type": "application/json"}
+    token = (os.environ.get("DEVPING_TOKEN") or get_var("DEVPING_TOKEN")).strip()
+    if token:   # a private ntfy server with access control
+        headers["Authorization"] = "Bearer " + token
+    req = urllib.request.Request(server_url() + "/", data=body, method="POST", headers=headers)
     with urllib.request.urlopen(req, timeout=6) as res:
         debug("'%s' -> %s: HTTP %s" % (title, server_url(), res.status))
         return 200 <= res.status < 300
@@ -350,6 +353,8 @@ def cmd_status(args):
     # The topic is the only secret and this output lands in a session transcript: show enough to recognise it.
     print("variable:  %s = %s" % (name, (topic[:9] + "... (%d characters)" % len(topic)) if topic else "(none)"))
     print("server:    %s" % server_url())
+    if server_url().lower().startswith("http://") and not re.match(r"http://(localhost|127\.|\[::1\])", server_url().lower()):
+        print("  WARN plain http: the topic (the only secret) and the window name travel unencrypted - use https")
     if has_legacy(project):
         print("WARNING:   an old per-project hook is still in %s - pings would come twice; "
               "devping connect removes it" % settings_path(project))
