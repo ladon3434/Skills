@@ -208,7 +208,10 @@ function main(args) {
 	const fwd = (p) => p.split('\\').join('/');
 	const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
 	const closureFile = join(outDir, `${stamp}-closure.json`);
-	const closureCommandlet = ['-run=pythonscript', `-script="${fwd(join(PyDir, 'cook-closure.py'))} ${fwd(closureFile)} ${roots.join(' ')}"`];
+	// The output path and the roots travel in a request file named by an environment variable: the engine splits
+	// what follows the script name on spaces, so a path with a space in it would arrive in pieces.
+	const closureRequest = join(outDir, `${stamp}-closure-request.json`);
+	const closureCommandlet = ['-run=pythonscript', `-script="${fwd(join(PyDir, 'cook-closure.py'))}"`];
 	const cookCommandlet = ['-run=cook', `-targetplatform=${platform}`, '-unversioned', ...(maps.length ? [`-map=${maps.join('+')}`] : [])];
 
 	console.log(`cook-check: ${project}, ${platform}; ${roots.length} root(s) (${maps.length} map(s), ${assets.length} asset(s), ${dirs.length} dir(s), ${slots.length} config slot(s))`);
@@ -232,10 +235,10 @@ function main(args) {
 		if (!editorCmd || !existsSync(editorCmd)) { console.log(`cook-check: ${engine.error ?? `no ${editorCmd}`}`); verdict('UNKNOWN', 2); }
 		gate(root);
 	}
-	const runEditor = (commandletArgs, logName) => {
+	const runEditor = (commandletArgs, logName, env = {}) => {
 		const log = join(outDir, `${stamp}-${logName}.log`);
 		// Verbatim: `-script="file.py a b"` must reach the engine's parser with the quotes after the `=`.
-		const run = spawnSync(editorCmd, [editorLine(commandletArgs)], { encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 30, windowsVerbatimArguments: true });
+		const run = spawnSync(editorCmd, [editorLine(commandletArgs)], { encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 30, windowsVerbatimArguments: true, env: { ...process.env, ...env } });
 		writeFileSync(log, (run.stdout ?? '') + (run.stderr ?? ''));
 		return { status: run.status, log, text: (run.stdout ?? '') + (run.stderr ?? '') };
 	};
@@ -251,7 +254,8 @@ function main(args) {
 	}
 	if (editorClosure) {
 		console.log('cook-check: closure from the editor asset registry...');
-		const run = runEditor(closureCommandlet, 'closure');
+		writeFileSync(closureRequest, JSON.stringify({ out: closureFile, roots }));
+		const run = runEditor(closureCommandlet, 'closure', { COOK_CLOSURE_REQUEST: closureRequest });
 		if (!existsSync(closureFile)) { console.log(`cook-check: the closure commandlet wrote nothing (exit ${run.status}) - see ${run.log}`); verdict('UNKNOWN', 2); }
 	}
 	if (!editorClosure) {

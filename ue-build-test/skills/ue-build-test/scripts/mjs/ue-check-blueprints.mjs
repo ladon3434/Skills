@@ -4,8 +4,10 @@
 // green while the Blueprint breaks. This runs UnrealEditor-Cmd -run=CompileAllBlueprints (one-shot, headless) over
 // an allow list and reports what failed.
 //
-//   (default)        every Blueprint under Content/ (/Game; engine and plugin content is skipped)
+//   (default)        every Blueprint under Content/ (/Game) and under the Content/ of the project's own plugins
+//                    (Plugins/**/<Name>.uplugin -> /<Name>); engine and marketplace-in-engine content is skipped
 //   --changed        only assets that mention a reflected type declared in a header changed since HEAD
+//   --no-plugins     leave plugin content out (third-party plugins whose Blueprints are not yours to fix)
 //   --type A,B       only assets that mention these types (the U/A/F/E/I prefix is optional)
 //
 // "Mention" = the type's name without its prefix appears in the .uasset bytes (a package's name table stores
@@ -14,13 +16,13 @@
 //
 // Same gates as ue-test: refuses next to an editor of this project, waits for what is not ours (ue-owner), and
 // refuses stale binaries (sources newer than the module DLLs) unless --allow-stale.
-// Usage: ue-check-blueprints.cmd [--changed | --type A,B] [--list-only] [--allow-stale] [--project p] [--wait s]
+// Usage: ue-check-blueprints.cmd [--changed | --type A,B] [--no-plugins] [--list-only] [--allow-stale] [--project p] [--wait s]
 //        [--timeout min] [--dry-run] [-- <commandlet switches, e.g. -IgnoreFolder=/Game/A,/Game/B>]
 // Ends with: RESULT: blueprints <OK|FAILED|DEFERRED|DRY-RUN> (exit N)
 
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exitWith, gate, gatePlan, renderCommand, Verdict } from './ue-gate.mjs';
 import { editorsOfProject } from './ue-proc.mjs';
@@ -40,9 +42,10 @@ export function reflectedTypes(text) {
 	return [...text.matchAll(ReflectedType)].map((m) => bareName(m[1]));
 }
 
-/** Content/Maps/Foo.uasset -> /Game/Maps/Foo.Foo (the object path the allow list takes). Pure. */
-export function objectPath(contentRoot, file) {
-	const pkg = '/Game/' + relative(contentRoot, file).replace(/\\/g, '/').replace(/\.uasset$/i, '');
+/** Content/Maps/Foo.uasset -> /Game/Maps/Foo.Foo (the object path the allow list takes); a plugin's Content/
+ *  mounts under /<PluginName>. Pure. */
+export function objectPath(contentRoot, file, mount = '/Game') {
+	const pkg = mount + '/' + relative(contentRoot, file).replace(/\\/g, '/').replace(/\.uasset$/i, '');
 	return `${pkg}.${pkg.slice(pkg.lastIndexOf('/') + 1)}`;
 }
 
@@ -126,6 +129,29 @@ function changedHeaders(projectDir) {
 	return { files: [...tracked, ...untracked].filter(isHeader).map((p) => join(projectDir, p)).filter((p) => existsSync(p)), before };
 }
 
+/** Content roots of the project: its own Content/ and the Content/ of every plugin under Plugins/ (the mount
+ *  point of a plugin is the .uplugin file's name). A .uplugin is looked for up to four folders deep. */
+export function contentRoots(projectDir) {
+	const roots = [{ dir: join(projectDir, 'Content'), mount: '/Game' }];
+	const visit = (dir, depth) => {
+		let entries;
+		try {
+			entries = readdirSync(dir, { withFileTypes: true });
+		} catch {
+			return;
+		}
+		const plugin = entries.find((e) => e.isFile() && /\.uplugin$/i.test(e.name));
+		if (plugin) {
+			const content = join(dir, 'Content');
+			if (existsSync(content)) roots.push({ dir: content, mount: '/' + plugin.name.replace(/\.uplugin$/i, '') });
+			return; // a plugin does not nest another one
+		}
+		if (depth < 4) for (const e of entries) if (e.isDirectory() && !/^(Binaries|Intermediate|Saved|\.git)$/i.test(e.name)) visit(join(dir, e.name), depth + 1);
+	};
+	visit(join(projectDir, 'Plugins'), 0);
+	return roots;
+}
+
 function assetsMentioning(contentRoot, names) {
 	const needles = names.map((n) => Buffer.from(n, 'latin1'));
 	const found = [];
@@ -142,6 +168,7 @@ async function main() {
 		changed: { type: 'bool' },
 		type: {},
 		'list-only': { type: 'bool' },
+		'no-plugins': { type: 'bool' },
 		'allow-stale': { type: 'bool' },
 		wait: { default: '600' },
 		timeout: { default: '30' },
@@ -149,9 +176,9 @@ async function main() {
 		help: { type: 'bool' },
 	});
 	if (args.help) {
-		console.log('usage: ue-check-blueprints.cmd [--changed | --type A,B] [--list-only] [--allow-stale] [--project p] [--wait s] [--timeout min] [--dry-run] [-- <commandlet switches>]');
+		console.log('usage: ue-check-blueprints.cmd [--changed | --type A,B] [--no-plugins] [--list-only] [--allow-stale] [--project p] [--wait s] [--timeout min] [--dry-run] [-- <commandlet switches>]');
 		console.log('  after --: passed to CompileAllBlueprints, e.g. -IgnoreFolder=/Game/ThirdParty,/Game/Demo');
-		console.log('  default: every Blueprint under Content/; --changed: assets mentioning types from headers changed since HEAD');
+		console.log('  default: every Blueprint under Content/ and the Content/ of project plugins; --changed: assets mentioning types from headers changed since HEAD');
 		console.log('  log: <project>/Saved/Logs/CompileAllBlueprints.log');
 		process.exit(0); // verdict-exempt: help
 	}
@@ -169,7 +196,8 @@ async function main() {
 		console.log(tools.error);
 		exitWith(Kind, Verdict.Failed, 1);
 	}
-	const contentRoot = join(tools.projectDir, 'Content');
+	const roots = contentRoots(tools.projectDir).filter((r) => !args['no-plugins'] || r.mount === '/Game');
+	const rootOf = (file) => roots.find((r) => file.startsWith(r.dir + sep)) ?? roots[0];
 	console.log(`Project : ${tools.project}`);
 
 	let assets;
@@ -190,17 +218,17 @@ async function main() {
 			console.log('No reflected type changed - no Blueprint can be affected, nothing to compile.');
 			exitWith(Kind, Verdict.Ok, 0);
 		}
-		assets = assetsMentioning(contentRoot, names);
+		assets = roots.flatMap((r) => assetsMentioning(r.dir, names));
 		console.log(`Assets mentioning ${names.join(', ')}: ${assets.length}`);
 		for (const a of assets) console.log(`  ${relative(tools.projectDir, a)}`);
 		if (!assets.length) {
-			console.log('No asset under Content/ mentions these types - nothing to compile.');
+			console.log('No asset under Content/ (the project and its plugins) mentions these types - nothing to compile.');
 			exitWith(Kind, Verdict.Ok, 0);
 		}
 		console.log('Data assets in this list are not compiled by the commandlet: a field removed from C++ is lost in them silently - look at them.');
 	} else {
-		assets = [...walk(contentRoot, /\.uasset$/i)];
-		console.log(`Whole Content/: ${assets.length} assets in the allow list (engine and plugin Blueprints are skipped).`);
+		assets = roots.flatMap((r) => [...walk(r.dir, /\.uasset$/i)]);
+		console.log(`Whole Content/: ${assets.length} assets in the allow list (${roots.map((r) => r.mount).join(', ')}; engine Blueprints are skipped).`);
 	}
 	if (args['list-only']) exitWith(Kind, Verdict.DryRun, 0);
 
@@ -255,7 +283,7 @@ async function main() {
 
 	const allowList = join(tools.projectDir, AllowListRel);
 	mkdirSync(join(allowList, '..'), { recursive: true });
-	writeFileSync(allowList, assets.map((a) => objectPath(contentRoot, a)).join('\n') + '\n', 'latin1');
+	writeFileSync(allowList, assets.map((a) => objectPath(rootOf(a).dir, a, rootOf(a).mount)).join('\n') + '\n', 'latin1');
 	mkdirSync(tools.logsDir, { recursive: true });
 	if (existsSync(logPath)) writeFileSync(logPath, ''); // an earlier run's log must not be read as this one's
 

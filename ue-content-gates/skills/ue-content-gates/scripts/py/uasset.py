@@ -53,6 +53,10 @@ UE5_METADATA_SERIALIZATION_OFFSET = 1014
 UE5_VERSE_CELLS = 1015
 UE5_PACKAGE_SAVED_HASH = 1016
 UE5_IMPORT_TYPE_HIERARCHIES = 1018
+# The newest layout this parser was checked against. A package saved by a later engine may carry fields it does
+# not know; it is still read, with one warning per run, because most version bumps do not touch the summary.
+UE5_NEWEST_KNOWN = UE5_IMPORT_TYPE_HIERARCHIES
+_warned_newer = False
 
 
 class PackageError(ValueError):
@@ -229,6 +233,11 @@ def _parse(r, path, want_assets):
     licensee = r.i32()
     if not p.ue4 and not p.ue5 and not licensee:
         raise PackageError(f"{path}: unversioned package (cooked) - not readable offline")
+    global _warned_newer
+    if p.ue5 > UE5_NEWEST_KNOWN and not _warned_newer:
+        _warned_newer = True
+        print(f"warning: {path}: package version UE5 {p.ue5} is newer than this parser knows ({UE5_NEWEST_KNOWN}) - "
+              "the header may be misread; update the plugin", file=sys.stderr)
     saved_hash = p.ue5 >= UE5_PACKAGE_SAVED_HASH
     if saved_hash:
         r.skip(20)                                  # FIoHash SavedHash

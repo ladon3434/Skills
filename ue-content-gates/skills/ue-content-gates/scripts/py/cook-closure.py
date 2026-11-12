@@ -11,12 +11,21 @@
 # A root ending in "/" is a folder: every package under it is a root.
 
 import json
+import os
 import sys
 
 import unreal
 
-args = sys.argv[1:]
-out_path, raw_roots = args[0], args[1:]
+# cook-check.mjs names a JSON file {out, roots} in COOK_CLOSURE_REQUEST: the engine splits the text after the
+# script name on spaces, so a path with a space in it cannot travel as an argument.
+request = os.environ.get("COOK_CLOSURE_REQUEST")
+if request:
+    with open(request, encoding="utf-8") as handle:
+        asked = json.load(handle)
+    out_path, raw_roots = asked["out"], asked["roots"]
+else:
+    args = sys.argv[1:]
+    out_path, raw_roots = args[0], args[1:]
 
 registry = unreal.AssetRegistryHelpers.get_asset_registry()
 registry.search_all_assets(True)

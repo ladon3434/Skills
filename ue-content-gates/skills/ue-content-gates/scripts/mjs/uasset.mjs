@@ -33,6 +33,9 @@ const UE5_METADATA_SERIALIZATION_OFFSET = 1014;
 const UE5_VERSE_CELLS = 1015;
 const UE5_PACKAGE_SAVED_HASH = 1016;
 const UE5_IMPORT_TYPE_HIERARCHIES = 1018;
+// The newest layout this parser was checked against; a later package is still read, with one warning per run.
+const UE5_NEWEST_KNOWN = UE5_IMPORT_TYPE_HIERARCHIES;
+let warnedNewer = false;
 
 export class PackageError extends Error {}
 
@@ -122,6 +125,10 @@ function parse(r) {
 	p.ue5 = legacy <= -8 ? r.i32() : 0;
 	const licensee = r.i32();
 	if (!p.ue4 && !p.ue5 && !licensee) throw new PackageError(`${r.path}: unversioned package (cooked) - not readable offline`);
+	if (p.ue5 > UE5_NEWEST_KNOWN && !warnedNewer) {
+		warnedNewer = true;
+		console.error(`warning: ${r.path}: package version UE5 ${p.ue5} is newer than this parser knows (${UE5_NEWEST_KNOWN}) - the header may be misread; update the plugin`);
+	}
 	const savedHash = p.ue5 >= UE5_PACKAGE_SAVED_HASH;
 	if (savedHash) { r.skip(20); r.i32(); } // FIoHash SavedHash, TotalHeaderSize
 	if (legacy <= -2) {

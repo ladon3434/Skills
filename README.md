@@ -90,8 +90,11 @@ switched off — Claude Code refuses and names what to switch off with it.
 
 ## Environment
 
-Machine variables: `UNREAL_HOME`, `UE_VERSION` (the `.uproject` version wins), `ENGINE_INDEX_HOME`,
-`UE_SAMPLES_ROOT`, `UE_MCP_PORT`. There is no broker: an agent touches only what it started itself
+Variables shared by several plugins: `UNREAL_HOME`, `UE_VERSION` (the `.uproject` version wins),
+`ENGINE_INDEX_HOME`, `UE_SAMPLES_ROOT`, `UE_MCP_PORT`, `CLAUDE_PROJECT_DIR` (the project, when the current folder
+has no `.uproject`). None is required: each has a default taken from the project or the Epic registry. A plugin's
+own variables are in its README (`code-analysis`, `ue-build-test`, `ue-release`, `unreal-editor` have an
+Environment table) and in its skill. There is no broker: an agent touches only what it started itself
 (markers in `Saved/AgentEditors`, `ue-workstation/skills/ue-workstation/scripts/mjs/ue-owner.mjs`). Scripts need
 Node 18+, some skills Python 3; the machine check is `ue-doctor` from `ue-workstation`.
 

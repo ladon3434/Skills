@@ -8,6 +8,8 @@
 //   - a GUI editor of this project is open -> REFUSED. The headless one would load the same packages and the
 //     person's next save fails with `MoveFile ... (Error Code 32)` — measured, it cost a map once.
 //   - a headless editor of this project already runs -> reused, never a second one (one instance at a time).
+//     A one-shot run (a commandlet, an automation test run) is not an editor to work in: it exits on its own,
+//     so it is REFUSED with "wait" instead of being reported as reusable.
 //   - ownership (ue-owner canLaunch): no editor of another project that this session did not start (one editor
 //     per machine), and no build that is not ours — an editor booting now loads half-written DLLs. Waits up
 //     to --wait seconds for what is not ours. The launched editor gets its marker in Saved/AgentEditors, so
@@ -24,7 +26,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { gate, gatePlan, renderCommand, winQuote } from './ue-gate.mjs';
 import { claim, MarkerDirName, snapshot, whoAmI } from './ue-owner.mjs';
-import { editorsOfProject } from './ue-proc.mjs';
+import { editorsOfProject, listEditorProcesses } from './ue-proc.mjs';
 import { binariesStale, parseArgs, resolveTools } from './ue-tools.mjs';
 
 const args = parseArgs(process.argv.slice(2), { project: {}, wait: { default: '120' }, 'dry-run': { type: 'bool' }, help: { type: 'bool' } });
@@ -49,13 +51,19 @@ const refuse = (why) => {
 };
 
 const e = editorsOfProject(tools.projectDir);
+// A commandlet (-run=) or a run that quits by itself (-ExecCmds=...Quit) leaves as soon as its job is done.
+const oneShotLine = (cmd) => typeof cmd === 'string' && (/\s-run=/i.test(cmd) || /-ExecCmds=.*\bquit\b/i.test(cmd));
+const cmdOf = new Map((listEditorProcesses() ?? []).map((r) => [r.pid, r.cmd]));
+const oneShot = e.headless.filter((pid) => oneShotLine(cmdOf.get(pid)));
+const reusable = e.headless.filter((pid) => !oneShot.includes(pid));
 const problems = [];
 if (e.gui.length) problems.push(`a GUI editor of this project is open (pid ${e.gui.join(', ')}): a headless editor next to it makes that editor's save fail with "MoveFile ... Error Code 32". Use that editor, or wait until it is closed.`);
 if (/\s/.test(logPath)) problems.push(`the log path has a space ("${logPath}"): the editor would ignore -ABSLOG=.`);
 if (binariesStale(tools).stale) problems.push('C++ sources are newer than the module binaries - it would run old code. Run ue-compile.cmd first.');
 
 if (args['dry-run']) {
-	if (e.headless.length) console.log(`WOULD REUSE: headless editor pid ${e.headless.join(', ')} already runs.`);
+	if (reusable.length) console.log(`WOULD REUSE: headless editor pid ${reusable.join(', ')} already runs.`);
+	if (oneShot.length) console.log(`WOULD REFUSE: a one-shot editor run of this project is in progress (pid ${oneShot.join(', ')}).`);
 	for (const p of problems) console.log(`WOULD REFUSE: ${p}`);
 	for (const l of gatePlan('launch', { wait: Number(args.wait) || 0 })) console.log(`Gate    : ${l}`);
 	console.log(`Log     : ${logPath}`);
@@ -65,10 +73,11 @@ if (args['dry-run']) {
 	process.exit(0);
 }
 
-if (e.headless.length) {
-	console.log(`A headless editor of this project already runs (pid ${e.headless.join(', ')}) - reusing it. Log: ${logPath}`);
+if (reusable.length) {
+	console.log(`A headless editor of this project already runs (pid ${reusable.join(', ')}) - reusing it. Log: ${logPath}`);
 	process.exit(0);
 }
+if (oneShot.length) refuse(`a one-shot editor run of this project is in progress (pid ${oneShot.join(', ')}: a commandlet or a test run). It exits when its job is done and is not an editor to work in - wait for it, then run this again.`);
 if (problems.length) refuse(problems.join('\n         '));
 if (!e.precise || e.opaque) console.log('WARNING: some editor processes cannot be attributed to a project.');
 

@@ -155,6 +155,7 @@ if (process.platform === 'win32') {
 	eq(f, reflectedTypes(header), ['MyDoor', 'DoorState', 'DoorMode'], 'reflected types, prefix stripped, plain classes ignored');
 	eq(f, [bareName('AMyDoor'), bareName('Unit'), bareName('IDoor')], ['MyDoor', 'Unit', 'Door'], 'prefix only before a capital');
 	eq(f, objectPath('C:\\p\\Content', 'C:\\p\\Content\\Maps\\BP_Door.uasset'), '/Game/Maps/BP_Door.BP_Door', 'object path');
+	eq(f, objectPath('C:\\p\\Plugins\\Kit\\Content', 'C:\\p\\Plugins\\Kit\\Content\\UI\\WBP_Hud.uasset', '/Kit'), '/Kit/UI/WBP_Hud.WBP_Hud', 'object path in a plugin mount');
 	const log = [
 		"[2026.10.11-10.00.00:000][  0]LogCompileAllBlueprintsCommandlet: Display: Loading and Compiling: '/Game/A/BP_Ok.BP_Ok'...",
 		"[2026.10.11-10.00.01:000][  0]LogCompileAllBlueprintsCommandlet: Display: Loading and Compiling: '/Game/A/BP_Bad.BP_Bad'...",

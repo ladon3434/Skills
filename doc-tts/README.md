@@ -30,4 +30,5 @@ Turn off: `/plugin` → Installed (space), or `claude plugin disable doc-tts@ue-
 
 Needs Python 3, `ffmpeg` on PATH and a ComfyUI stand with the TTS-Audio-Suite pack and the Qwen3-TTS models
 (SKILL.md, «The stand»); `DOC_TTS_COMFY_URL` points at it. By default each mp3 lands next to its `.md`;
-`--out-root` puts them in a separate folder.
+`--out-root` puts them in a separate folder. Read chunks are cached in `%TEMP%\doc-tts-cache` (`DOC_TTS_CACHE`
+moves it); a chunk unused for 30 days is dropped (`DOC_TTS_CACHE_DAYS`).
