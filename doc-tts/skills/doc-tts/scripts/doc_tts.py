@@ -407,7 +407,7 @@ def cmd_read(args):
 def cmd_voices():
     voices = all_voices()
     if not voices:
-        print(f"no voices yet; folders: {USER_VOICES} (yours), {SHIPPED_VOICES} (shipped)")
+        print(f"no voices yet - make one with `doc_tts.py design NAME --instruction \"...\"` (SKILL.md, Voices); it goes to {USER_VOICES}")
         return
     dflt = default_voice_name(voices)
     for name, v in sorted(voices.items()):

@@ -17,7 +17,8 @@ python <skill>/scripts/check_md_links.py <docs>
 python <skill>/scripts/check_duplicates.py <docs>
 ```
 
-- **Structure** — `[NUM]` broken ordered-list numbering (per indent level, per section), `[ANC]` `[[File#Heading]]`
+- **Structure** — `[NUM]` broken ordered-list numbering (per indent level, per section; a second, separate list in
+  one section starts after a line `<!-- new list -->`), `[ANC]` `[[File#Heading]]`
   / `[[#Heading]]` to a missing heading, `[BLK]` `[[File#^id]]` to a missing block ID, `[DUPH]` a heading text
   repeated in one file (ambiguous anchor), `[NUMH]` a heading starting with a number, `[HCHR]` a `##`+ heading no
   link can reliably reach (`# | ^ %% [[ ]]`, or `:`), `[PIPE]` an unescaped alias pipe in a table row, `[TBL]` an

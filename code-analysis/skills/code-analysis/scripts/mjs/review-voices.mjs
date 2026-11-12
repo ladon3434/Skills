@@ -305,6 +305,10 @@ async function main() {
     return 0;
   }
 
+  // Said every time, before anything leaves: the owner of the code decides, and can only decide what they know.
+  console.log(`NOTE: the brief and the files of ${a.subject} that the voices read are sent to external model vendors: ` +
+    `${ready.map((v) => `${v.name} (${v.name === 'agy' ? 'Google' : v.name === 'codex' ? 'OpenAI' : 'its vendor'})`).join(', ')}. ` +
+    'Tell the person before the first run in a project; UE_REVIEW_VOICES=none keeps the review on Fable alone.');
   fs.mkdirSync(a.out, { recursive: true });
   for (const v of ready) for (const ext of ['md', 'err'])
     if (fs.existsSync(path.join(a.out, `${v.name}.${ext}`))) throw new UsageError(`${a.out} already holds reports: use a new --out`);

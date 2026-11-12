@@ -5,7 +5,8 @@ Headings carry no numbers: links point at heading TEXT, so renumbering cannot br
 are the numbers of list items inside a section, and anchors go stale when a heading is renamed outside Obsidian.
 
 Checks:
-  [NUM] ordered-list numbering is continuous per indent level inside each heading
+  [NUM] ordered-list numbering is continuous per indent level inside each heading;
+        a line `<!-- new list -->` starts a separate series in the same section
   [ANC] every [[File#Heading]] and [[#Heading]] resolves to a real heading
   [BLK] every [[File#^id]] / [[#^id]] resolves to a real block id (a trailing "^id" on a line)
   [DUPH] a heading text repeated in one file - its anchor is ambiguous
@@ -50,6 +51,8 @@ for _stream in (sys.stdout, sys.stderr):
 
 HEADING_RE = re.compile(r'^#{1,6}\s+(.*?)\s*$')
 ITEM_RE = re.compile(r'^([ \t]*)(\d+)\.\s')
+# The marker that ends a numbered series inside one section: <!-- new list --> on a line of its own.
+NEW_LIST_RE = re.compile(r'^\s*<!--\s*new[ -]list\s*-->\s*$', re.IGNORECASE)
 XREF_RE = re.compile(r'\[\[([^\]|#\n]+)#([^\]|#^\n]+)(?:\|[^\]]*)?\]\]')
 LOCALREF_RE = re.compile(r'\[\[#([^\]|#^\n]+)(?:\|[^\]]*)?\]\]')
 BLOCKREF_RE = re.compile(r'\[\[([^\]|#\n]*)#\^([A-Za-z0-9-]+)(?:\|[^\]]*)?\]\]')
@@ -110,6 +113,9 @@ def check_numbering(lines, mask, fix):
         if line.startswith('#'):
             levels.clear()
             section = line.strip('# \n')
+            continue
+        if NEW_LIST_RE.match(line):
+            levels.clear()                        # the next list is its own series, numbered from where it starts
             continue
         m = ITEM_RE.match(line)
         if not m:

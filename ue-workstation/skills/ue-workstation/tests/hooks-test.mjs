@@ -215,6 +215,12 @@ try {
 	check(decide('/c/Users/me/.claude/skills/x/SKILL.md', ctx), 'allow', 'the Claude config dir (msys spelling)');
 	check(decide('C:/Users/me/AppData/Local/Temp/claude/abc/scratch.txt', ctx), 'allow', 'an agent scratch folder');
 	check(decide('F:/Library/Pack/readme.txt', ctx), 'allow', 'an extra root from UE_WS_WRITE_ROOTS');
+	check(decide('C:/Users/me/.claude/settings.json', ctx), 'ask', 'the user settings are asked about');
+	check(decide('C:/Projects/Game/.claude/settings.local.json', ctx), 'ask', 'the project settings too');
+	check(decide('C:/Projects/Game/.mcp.json', ctx), 'ask', 'and the MCP server list');
+	check(decide('C:/Users/me/.claude/plugins/cache/x/hooks/guard.mjs', ctx), 'ask', 'an installed plugin is asked about');
+	check(decide('C:/Projects/Game/.claude/hooks/pre.mjs', ctx), 'ask', 'a project hook is asked about');
+	check(decide('C:/Users/me/.claude/projects/p/memory/note.md', ctx), 'allow', 'memory in the config dir is still allowed');
 	const pw = (file, event) => runHook('project-writes.mjs', { hook_event_name: event, tool_input: { file_path: file } },
 		{ CLAUDE_PROJECT_DIR: 'C:\\Projects\\Game', UE_WS_WRITE_ROOTS: '', UE_WS_PROJECT_WRITES: '1' }).stdout;
 	const pwOff = runHook('project-writes.mjs', { hook_event_name: 'PreToolUse', tool_input: { file_path: 'C:/Projects/Game/a.txt' } },
@@ -222,7 +228,8 @@ try {
 	check(pwOff, '', 'switched off without UE_WS_PROJECT_WRITES=1 (plugin default)');
 	check(/"permissionDecision":"allow"/.test(pw('C:/Projects/Game/a.txt', 'PreToolUse')), true, 'PreToolUse allow JSON');
 	check(/"permissionDecision":"ask"/.test(pw('C:/Elsewhere/a.txt', 'PreToolUse')), true, 'PreToolUse ask JSON');
-	check(/"behavior":"allow"/.test(pw('C:/Projects/Game/.claude/settings.json', 'PermissionRequest')), true, 'PermissionRequest allow inside .claude');
+	check(/"behavior":"allow"/.test(pw('C:/Projects/Game/.claude/docs/known-hazards.md', 'PermissionRequest')), true, 'PermissionRequest allow inside .claude');
+	check(/"behavior":"allow"/.test(pw('C:/Projects/Game/.claude/settings.json', 'PermissionRequest')), false, 'but not for the settings: the dialog stays');
 	check(pw('C:/Elsewhere/a.txt', 'PermissionRequest'), '', 'PermissionRequest outside says nothing (the dialog shows)');
 
 	// ---- subagent-engine-root ------------------------------------------------------------------------------------

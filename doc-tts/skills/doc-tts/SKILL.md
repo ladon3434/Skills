@@ -41,13 +41,18 @@ time or slower — a long document takes a while, so run it in the background an
 
 ## Voices
 
-Looked up in `DOC_TTS_VOICES` (default `%USERPROFILE%\.claude\doc-tts\voices`), then in `<skill>/voices/` (shipped
-with the plugin); a name in the first wins. The default is `DOC_TTS_VOICE`, else the voice whose json has
+Looked up in `DOC_TTS_VOICES` (default `%USERPROFILE%\.claude\doc-tts\voices`), then in `<skill>/voices/` (empty:
+the plugin ships no voice); a name in the first wins. The default is `DOC_TTS_VOICE`, else the voice whose json has
 `"default": true`, else the only voice. `<name>.json` keeps how it was made: `instruction`, `seed`, `language`,
 `text` (what the clip says), `speak_seed` (seed for reading, 1).
 
-Shipped: `narrator_m` (default) — a calm middle-aged male narrator, Russian; its json holds the description and
-seed it was designed from.
+No voice comes with the plugin — the first run designs one. A description to start from (a calm narrator, Russian):
+
+```
+doc_tts.py design narrator_m --language Russian --instruction "A calm middle-aged male narrator with a warm, low voice, clear diction, steady unhurried pace, like a documentary or audiobook reader."
+```
+
+Then make it the default: `"default": true` in its json, or `DOC_TTS_VOICE=narrator_m`.
 
 **Picking a voice:** `design` several descriptions with a few seeds each (`--seeds 1,2,3` → `NAME_s1`, …), listen
 to the clips, then `audition` a real passage with the candidates — the cloned reading is what matters, not the

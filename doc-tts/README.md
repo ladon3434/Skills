@@ -14,7 +14,7 @@ Paths are relative to the skill folder `skills/doc-tts/`; `.claude-plugin/` sits
 | `SKILL.md` | running, flags, voices, what the cleanup does |
 | `scripts/doc-tts.cmd` | wrapper: finds Python (`PYTHON` → PATH → `py -3`) |
 | `scripts/doc_tts.py` | markdown cleanup, voice design, audition, reading through the stand (or `edge-tts`) |
-| `voices/` | shipped voices: `<name>.flac` reference clip + `<name>.json` (how it was designed) |
+| `%USERPROFILE%\.claude\doc-tts\voices` | your voices: `<name>.flac` reference clip + `<name>.json` (how it was designed); none is shipped — `design` makes the first |
 
 ## Install
 

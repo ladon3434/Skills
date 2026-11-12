@@ -5,6 +5,8 @@
 // (its paths resolve against ~/.claude); $CLAUDE_PROJECT_DIR is the only project-independent way to name it.
 // Deletion is the other half of the policy and lives in the `ask` list of settings.json (rm / Remove-Item / ...).
 //
+// Never waved through, wherever they lie: settings.json / settings.local.json, hooks.json, .mcp.json, .claude.json,
+// a hooks/ folder under .claude, and the installed plugins - what switches the guards on and off is asked about.
 // Also allowed without asking: the Claude config dir (CLAUDE_CONFIG_DIR or ~/.claude: skills, memory), agent
 // scratch folders (*/Temp/claude/*), and extra roots in UE_WS_WRITE_ROOTS (';'-separated, e.g. a sibling
 // project or a shared asset drive).
@@ -58,7 +60,12 @@ export function decide(file, ctx) {
 	const f = canonical(abs);
 	if (!f) return null;
 	if (/\/(binaries|intermediate|deriveddatacache|saved|\.vs|\.git|node_modules)(\/|$)/.test(f)) return null;
-	if (under(f, canonical(ctx.configDir))) return 'allow';
+	// What switches the guards themselves on and off is never waved through: settings, hook wiring and hook code,
+	// installed plugins, the MCP server list. Auto-allowed, any guard would be one silent edit away from gone.
+	const config = canonical(ctx.configDir);
+	if (/(^|\/)(settings(\.local)?\.json|hooks\.json|\.mcp\.json|\.claude\.json)$/.test(f)) return 'ask';
+	if (/\/\.claude[^/]*\/hooks\//.test(f) || under(f, `${config}/hooks`) || under(f, `${config}/plugins`)) return 'ask';
+	if (under(f, config)) return 'allow';
 	if (/\/temp\/claude\//.test(f)) return 'allow';
 	for (const r of ctx.extraRoots ?? []) if (r && under(f, canonical(r))) return 'allow';
 	if (under(f, project)) return 'allow';
@@ -84,7 +91,9 @@ function main() {
 		process.stdout.write(JSON.stringify(out));
 	} else if (verdict === 'ask' && event !== 'PermissionRequest') {
 		// On PermissionRequest "ask" means saying nothing: the dialog shows.
-		process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: 'Write outside the project directory - confirm.' } }));
+		process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: /(settings(\.local)?\.json|hooks\.json|\.mcp\.json|\.claude\.json)$|[\\/](hooks|plugins)[\\/]/i.test(file)
+			? 'This file switches guards on or off (settings, hook wiring or code, plugins, MCP servers) - confirm.'
+			: 'Write outside the project directory - confirm.' } }));
 	}
 }
 
