@@ -64,12 +64,16 @@ alone; the owner is told "second opinion not done: no Fable on this account".
 
 - **agy** auto-allows reads *and writes* inside its workspace in headless mode, and soft-denies (exit 0, a notice
   on stderr) anything it would have to ask about — so a prompt alone does not make it read-only, and a read
-  outside the granted folders silently yields an empty or partial report. `review-voices` passes session rules
-  (`--settings`, never saved): allow `read_file` on the subject and the brief folder, deny `write_file`,
-  `command`, `unsandboxed`, `execute_url`, `read_url` and `mcp` on everything (deny beats allow). Verified: with
-  them a write and a shell command are refused with "Matches user-configured deny rule". Never
-  `--dangerously-skip-permissions` — it approves writes and commands too. A denial notice in its stderr makes the
-  status `PARTIAL`.
+  outside the granted folders silently yields an empty or partial report — the first such read ends the run with
+  no output at all (`EMPTY`, stderr: «a tool required the "read_file" permission … auto-denied»). `review-voices`
+  passes session rules (`--settings`, never saved): allow `read_file` on the subject, the brief folder and this
+  skill's `references` folder (the checklist a brief names), deny `write_file`, `command`, `execute_url`,
+  `read_url` and `mcp` on everything (deny beats allow). agy rejects `unsandboxed(...)` as an invalid rule, so it is
+  not passed. Verified: with them a write and a shell command are refused with "Matches user-configured deny
+  rule", and a file under `references` is read (12.11.2026). Any other file a brief needs is copied into the brief
+  folder. Never `--dangerously-skip-permissions` — it approves writes and commands too. A denial notice in its
+  stderr makes the status `PARTIAL`; git's warning that it cannot read the global ignore file under codex's sandbox
+  does not.
 - **codex** runs `exec --sandbox read-only` with the brief on stdin, and prints only its final message to
   stdout. Verified on Windows: a write is refused with "Access ... is denied". The sandbox limits writes and
   commands, not reads: unlike `agy`, codex is not confined to the subject and the brief folder — what else it can

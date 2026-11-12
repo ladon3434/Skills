@@ -8,6 +8,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// The skill's references (review checklists): a brief points the voices at them by absolute path.
+const REFERENCES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'references');
 
 const HELP = `review-voices — the external review voices (agy = Gemini, codex = OpenAI), read-only;
 the third voice, fable (code-analysis:reviewer agent), is dispatched by Claude alongside
@@ -18,7 +22,7 @@ the third voice, fable (code-analysis:reviewer agent), is dispatched by Claude a
       run the brief through every voice found, in parallel; reports in <out>/<voice>.md (+ .err)
 
 The brief and any file it names (diff.patch) live in the brief's folder; the voices are pointed at that folder and
-the subject (agy can read nothing else; codex is sandboxed against writes, not reads). --out (default: a new temp folder) must lie outside both.
+the subject (agy can read nothing else besides the skill's references; codex is sandboxed against writes, not reads). --out (default: a new temp folder) must lie outside both.
 
 Last line: RESULT: voices <voice>=<OK|PARTIAL|EMPTY|FAILED|TIMEOUT|ABSENT> ... untouched=<OK|CHANGED|UNCHECKED>
 Exit: 0 at least one report, 1 every voice failed, 2 usage error, 3 no voice on the machine
@@ -191,11 +195,13 @@ function killTree(child) {
 function killAll() { for (const c of live) killTree(c); live.clear(); }
 
 function agySettings(a) {
-  // Headless agy auto-allows reads AND writes inside its workspace and soft-denies everything it would ask about.
-  // Deny beats allow: grant reads of the subject and the brief folder only, deny every writing or executing action.
+  // Headless agy auto-allows reads AND writes inside its workspace and soft-denies everything it would ask about;
+  // the first denied read ends the run with no output (exit 0, empty report). Deny beats allow: grant reads of the
+  // subject, the brief folder and the skill's references (the checklist the brief names), deny every writing or
+  // executing action. agy rejects an `unsandboxed(...)` rule as invalid; `command(*)` already covers it.
   return JSON.stringify({ permissions: {
-    allow: [`read_file(${a.subject})`, `read_file(${a.briefDir})`],
-    deny: ['write_file(*)', 'command(*)', 'unsandboxed(*)', 'execute_url(*)', 'read_url(*)', 'mcp(*)'],
+    allow: [`read_file(${a.subject})`, `read_file(${a.briefDir})`, `read_file(${REFERENCES})`],
+    deny: ['write_file(*)', 'command(*)', 'execute_url(*)', 'read_url(*)', 'mcp(*)'],
   } });
 }
 
@@ -205,7 +211,7 @@ function commandFor(v, a) {
     const secs = Math.max(30, Math.round(a.timeoutMin * 60) - 30);
     const prompt = `${GUARD}\n\nThe review brief is the file ${a.brief}. Read it and follow it exactly. Files it names ` +
       `are in ${a.briefDir} or in the subject ${a.subject}.`;
-    return { cwd, stdin: null, args: [...v.launch.pre, '--model', v.model, '--add-dir', a.subject, '--add-dir', a.briefDir,
+    return { cwd, stdin: null, args: [...v.launch.pre, '--model', v.model, '--add-dir', a.subject, '--add-dir', a.briefDir, '--add-dir', REFERENCES,
       '--settings', agySettings(a), '--print-timeout', `${secs}s`, '-p', prompt] };
   }
   const args = [...v.launch.pre, 'exec', '--sandbox', 'read-only', '--skip-git-repo-check', '-C', a.subject,
@@ -216,6 +222,8 @@ function commandFor(v, a) {
 }
 
 const DENIAL = /auto-denied|permission denied|soft-denied/i;
+// git under codex's sandbox cannot read the user's global ignore file; that warning is no denied read of the subject.
+const DENIAL_NOISE = /unable to access '[^']*git[\/]ignore': Permission denied/gi;
 
 function runOne(v, a) {
   return new Promise(resolve => {
@@ -231,7 +239,7 @@ function runOne(v, a) {
       if (extra) fs.writeSync(err, `\n${extra}\n`);
       fs.closeSync(out); fs.closeSync(err);
       const size = fs.statSync(outFile).size, secs = Math.round((Date.now() - t0) / 1000);
-      const denied = DENIAL.test(fs.readFileSync(errFile, 'utf8'));
+      const denied = DENIAL.test(fs.readFileSync(errFile, 'utf8').replace(DENIAL_NOISE, ''));
       const status = timedOut ? 'TIMEOUT' : code !== 0 ? 'FAILED' : size === 0 ? 'EMPTY' : denied ? 'PARTIAL' : 'OK';
       resolve({ ...v, status, code, size, secs, outFile, errFile, denied });
     };
