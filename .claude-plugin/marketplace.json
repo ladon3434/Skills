@@ -76,6 +76,11 @@
       "name": "desk-utils",
       "source": "./desk-utils",
       "description": "Windows desktop helpers: read/write the clipboard, capture the screen, print markdown/HTML to PDF via headless Chrome or Edge"
+    },
+    {
+      "name": "web-research",
+      "source": "./web-research",
+      "description": "Web research with sources: search, read pages, and a second route through the public Jina Reader (r.jina.ai) for public pages that refuse automated fetches (403, bot walls, empty shells); agent web-searcher"
     }
   ]
 }

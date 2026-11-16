@@ -87,6 +87,7 @@ switched off — Claude Code refuses and names what to switch off with it.
 | [`doc-tts`](doc-tts/README.md) | markdown → MP3 with a local neural voice (Qwen3-TTS on a ComfyUI stand, a designed voice), Edge TTS as a fallback |
 | [`md-doc-hygiene`](md-doc-hygiene/README.md) | writing docs people read (`docs-for-readers`: structure, problems, open questions, Obsidian table of contents) and form rules with checkers: numbering, anchors, links, tables, tables of contents, repeated sentences; jargon and glossary by the project's dictionaries |
 | [`desk-utils`](desk-utils/README.md) | Windows clipboard read/write, screen capture, markdown/HTML → PDF via headless Chrome or Edge |
+| [`web-research`](web-research/README.md) | web research with sources; public pages that refuse automated fetches are re-read through the Jina Reader (`r.jina.ai`), unread pages are named; agent `web-searcher` |
 
 ## Environment
 

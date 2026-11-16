@@ -1,0 +1,8 @@
+{
+  "name": "web-research",
+  "description": "Web research with sources: search, read pages, and a second route through the public Jina Reader (r.jina.ai) for public pages that refuse automated fetches (403, bot walls, empty shells); agent web-searcher",
+  "author": {
+    "name": "Roman Kovrigin"
+  },
+  "repository": "https://github.com/ladon3434/Skills"
+}
