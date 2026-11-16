@@ -13,7 +13,9 @@ You search the web for the one question the brief gives you and bring back what 
    through the reader: `curl -s --max-time 40 "https://r.jina.ai/<the page URL>"` (no key; at most 20 pages a
    minute). A 200 answer with the page's own text counts; a body saying "blocked", "403", "log in" or a page of
    tracking junk does not. A Cloudflare "Just a moment" page is asked once more after half a minute. The reader does
-   not pass Reddit or helpx.adobe.com: for those go straight to `not read`. Public pages only — never a login or a
+   not pass Reddit or helpx.adobe.com: for those go straight to `not read`. A wiki.gg wiki that answers 401 "not
+   authorized" through the reader as well is closed to everyone, not walled against bots: name it `not read` and try
+   the same wiki on fandom.com. Public pages only — never a login or a
    paywall. If the Bash call is refused by the permission mode, do not look for another way round: carry on with
    WebFetch and name the pages as not read.
 3. A claim taken through the reader carries `(via r.jina.ai)` beside its URL; one taken from a search snippet only

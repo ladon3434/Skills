@@ -26,6 +26,9 @@ This skill fixes what to do then, and how to mark what was and was not read.
      or a page of cookie and tracking junk does not.
    - A Cloudflare "Just a moment" page is asked once more after about half a minute; often the second answer is whole.
    - Known not to pass (2026-11): Reddit, helpx.adobe.com. Go straight to "not read" for them.
+   - A wiki.gg wiki that answers 401 "you don't seem to be authorized" through the reader too is closed to everyone
+     (a wiki still in onboarding), not walled against bots: no route reads it. Look for the same game's wiki on
+     fandom.com, which the reader does pass (2026-11).
 4. **Still nothing — say so.** The page is named `not read: <URL>`, and nothing from its search snippet is written
    as if it had been read. Look for the same fact elsewhere: an official patch note, a mirror, the Wayback Machine
    copy (`https://web.archive.org/web/<URL>`), a second wiki.
