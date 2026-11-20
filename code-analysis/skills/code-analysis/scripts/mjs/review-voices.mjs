@@ -9,6 +9,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { corpusRoots } from './engine-index.mjs';
+import { resolveEngine } from './ue-engine.mjs';
 
 // The skill's references (review checklists): a brief points the voices at them by absolute path.
 const REFERENCES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'references');
@@ -18,11 +20,15 @@ the third voice, fable (code-analysis:reviewer agent), is dispatched by Claude a
 
   review-voices list
       which voices are on this machine, the binary and the model each would run
-  review-voices run --brief <file> --subject <dir> [--out <dir>] [--only agy,codex] [--timeout-min 15] [--dry-run]
+  review-voices run --brief <file> --subject <dir> [--out <dir>] [--only agy,codex] [--timeout-min 15]
+                    [--engine <unreal home>|none] [--dry-run]
       run the brief through every voice found, in parallel; reports in <out>/<voice>.md (+ .err)
 
 The brief and any file it names (diff.patch) live in the brief's folder; the voices are pointed at that folder and
-the subject (agy can read nothing else besides the skill's references; codex is sandboxed against writes, not reads). --out (default: a new temp folder) must lie outside both.
+the subject. agy can read nothing else besides the skill's references and the engine source (Engine/Source,
+Engine/Plugins, and UE_SAMPLES_ROOT when set) — the engine the subject's .uproject resolves to (as ue-engine.mjs),
+or --engine <unreal home>; --engine none withholds it. codex is sandboxed against writes, not reads.
+--out (default: a new temp folder) must lie outside the subject and the brief folder.
 
 Last line: RESULT: voices <voice>=<OK|PARTIAL|EMPTY|FAILED|TIMEOUT|ABSENT> ... untouched=<OK|CHANGED|UNCHECKED>
 Exit: 0 at least one report, 1 every voice failed, 2 usage error, 3 no voice on the machine
@@ -154,6 +160,7 @@ function parseArgs(argv) {
     else if (k === '--out') a.out = val();
     else if (k === '--only') a.only = voiceSet(val(), '--only');
     else if (k === '--timeout-min') a.timeoutMin = Number(val());
+    else if (k === '--engine') a.engine = val();
     else if (k === '--dry-run') a.dry = true;
     else if (k === '--help' || k === '-h') a.cmd = 'help';
     else throw new UsageError(`unknown argument: ${k}`);
@@ -194,13 +201,30 @@ function killTree(child) {
 
 function killAll() { for (const c of live) killTree(c); live.clear(); }
 
+// The engine corpora a reviewer checks a claim against (the brief names the engine root): read-only grants for agy.
+// Not --add-dir: a workspace folder is writable and gets indexed; an allow rule alone lets agy read it.
+function engineRoots(a) {
+  if (a.engine === 'none') return { roots: [], note: 'engine source withheld (--engine none)' };
+  let home = a.engine;
+  if (!home) {
+    const r = resolveEngine(process.env, a.subject);
+    if (r.error) return { roots: [], note: `engine source not granted: ${r.error.replace(/^ERROR:\s*/, '')}` };
+    home = r.unrealHome;
+  } else if (!fs.existsSync(path.join(home, 'Engine'))) throw new UsageError(`--engine ${home} has no Engine folder`);
+  const roots = [...corpusRoots('engine', home), ...corpusRoots('templates', home)].filter(d => fs.existsSync(d));
+  return { roots, note: `engine source granted read-only: ${roots.join(', ')}` };
+}
+
 function agySettings(a) {
   // Headless agy auto-allows reads AND writes inside its workspace and soft-denies everything it would ask about;
-  // the first denied read ends the run with no output (exit 0, empty report). Deny beats allow: grant reads of the
-  // subject, the brief folder and the skill's references (the checklist the brief names), deny every writing or
-  // executing action. agy rejects an `unsandboxed(...)` rule as invalid; `command(*)` already covers it.
+  // the first denied read ends the run with no output (exit 0, empty report) — a read of the engine source the
+  // brief points at included (seen 13–20.11.2026: agy, and its own subagents, open engine headers to check a
+  // claim). Deny beats allow: grant reads of the subject, the brief folder, the skill's references (the checklist
+  // the brief names) and the engine source, deny every writing or executing action. agy rejects an
+  // `unsandboxed(...)` rule as invalid; `command(*)` already covers it.
   return JSON.stringify({ permissions: {
-    allow: [`read_file(${a.subject})`, `read_file(${a.briefDir})`, `read_file(${REFERENCES})`],
+    allow: [`read_file(${a.subject})`, `read_file(${a.briefDir})`, `read_file(${REFERENCES})`,
+      ...a.engineRoots.map(d => `read_file(${d})`)],
     deny: ['write_file(*)', 'command(*)', 'execute_url(*)', 'read_url(*)', 'mcp(*)'],
   } });
 }
@@ -210,7 +234,10 @@ function commandFor(v, a) {
   if (v.name === 'agy') {
     const secs = Math.max(30, Math.round(a.timeoutMin * 60) - 30);
     const prompt = `${GUARD}\n\nThe review brief is the file ${a.brief}. Read it and follow it exactly. Files it names ` +
-      `are in ${a.briefDir} or in the subject ${a.subject}.`;
+      `are in ${a.briefDir} or in the subject ${a.subject}.` + (a.engineRoots.length
+        ? ` The engine source is readable under ${a.engineRoots.join(', ')}; open it with the file read tool, not a shell.`
+        : ' The engine source is not readable in this run: do not open it — name the claim it would have settled.') +
+      ' Any other path is denied, and a denied read ends the run with no report.';
     return { cwd, stdin: null, args: [...v.launch.pre, '--model', v.model, '--add-dir', a.subject, '--add-dir', a.briefDir, '--add-dir', REFERENCES,
       '--settings', agySettings(a), '--print-timeout', `${secs}s`, '-p', prompt] };
   }
@@ -299,6 +326,10 @@ async function main() {
   const voices = detect(a.only);
   const ready = voices.filter(v => v.ready);
   for (const v of voices) if (!v.ready) console.log(`${v.name}: ABSENT (${v.note})`);
+  if (a.engine && a.engine !== 'none') a.engine = path.resolve(a.engine);
+  const eng = ready.some(v => v.name === 'agy') ? engineRoots(a) : { roots: [], note: null };
+  a.engineRoots = eng.roots;
+  if (eng.note) console.log(`agy: ${eng.note}`);
   if (!ready.length) {
     console.log(`RESULT: voices fable (no external voice, exit 3) — the ${FABLE} carries the review alone`);
     return 3;

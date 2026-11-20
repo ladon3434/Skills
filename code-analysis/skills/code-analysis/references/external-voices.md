@@ -66,12 +66,20 @@ alone; the owner is told "second opinion not done: no Fable on this account".
   on stderr) anything it would have to ask about — so a prompt alone does not make it read-only, and a read
   outside the granted folders silently yields an empty or partial report — the first such read ends the run with
   no output at all (`EMPTY`, stderr: «a tool required the "read_file" permission … auto-denied»). `review-voices`
-  passes session rules (`--settings`, never saved): allow `read_file` on the subject, the brief folder and this
-  skill's `references` folder (the checklist a brief names), deny `write_file`, `command`, `execute_url`,
-  `read_url` and `mcp` on everything (deny beats allow). agy rejects `unsandboxed(...)` as an invalid rule, so it is
-  not passed. Verified: with them a write and a shell command are refused with "Matches user-configured deny
-  rule", and a file under `references` is read (12.11.2026). Any other file a brief needs is copied into the brief
-  folder. Never `--dangerously-skip-permissions` — it approves writes and commands too. A denial notice in its
+  passes session rules (`--settings`, never saved): allow `read_file` on the subject, the brief folder, this
+  skill's `references` folder (the checklist a brief names) and the engine source — `Engine/Source`,
+  `Engine/Plugins` and `UE_SAMPLES_ROOT` of the engine the subject's `.uproject` resolves to (`--engine <unreal
+  home>` overrides, `--engine none` withholds it); deny `write_file`, `command`, `execute_url`, `read_url` and
+  `mcp` on everything (deny beats allow). The engine is granted by rule only, never `--add-dir`: a workspace
+  folder is writable and gets indexed. Without that grant agy — and the subagents it starts on its own — opens an
+  engine header to check a claim, is denied and returns `EMPTY` (13–20.11.2026, most runs on a real change).
+  agy rejects `unsandboxed(...)` as an invalid rule, so it is not passed. Verified: with them a write and a shell
+  command are refused with "Matches user-configured deny rule", a file under `references` is read (12.11.2026), and
+  an engine header under `C:\Program Files\…` is read (20.11.2026). Any other file a brief needs is copied into the
+  brief folder. To see what a soft-denied run tried, read agy's own log `~/.gemini/antigravity-cli/cli.log`
+  («soft-denying: <conversation> step N») and that conversation's `conversations/<id>.db` (the `steps` table
+  holds the tool call and «permission check failed for read_file "<path>"»). Never
+  `--dangerously-skip-permissions` — it approves writes and commands too. A denial notice in its
   stderr makes the status `PARTIAL`; git's warning that it cannot read the global ignore file under codex's sandbox
   does not.
 - **codex** runs `exec --sandbox read-only` with the brief on stdin, and prints only its final message to
